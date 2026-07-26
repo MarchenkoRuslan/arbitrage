@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-import httpx
 from loguru import logger
 
-from src.core.config import settings
+from src.core.config import Settings
+from src.core.http import ResilientClient
 from src.core.models import FundingRate, Ticker
 from src.core.normalize import hl_symbol_to_normalized, rate_to_apr
+from src.core.state import MarketState
+from src.exchanges.schemas import HLAssetCtx, HLAssetInfo
 
 FUNDING_PERIOD_HOURS = 1
 
@@ -14,73 +16,74 @@ FUNDING_PERIOD_HOURS = 1
 class HyperliquidConnector:
     name = "hyperliquid"
 
-    def __init__(self) -> None:
-        self._base_url = settings.hl_base_url
-        self._client = httpx.AsyncClient(timeout=10)
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+        self._client = ResilientClient(
+            base_url=settings.hl_base_url,
+            timeout=settings.http_timeout,
+            max_retries=settings.http_max_retries,
+        )
 
-    async def get_funding_rates(self) -> dict[str, FundingRate]:
-        """Fetch funding rates for all perps via metaAndAssetCtxs."""
+    async def _fetch_meta_and_asset_ctxs(self) -> tuple[list[HLAssetInfo], list[HLAssetCtx]]:
         resp = await self._client.post(
-            f"{self._base_url}/info",
+            "/info",
             json={"type": "metaAndAssetCtxs"},
         )
-        resp.raise_for_status()
         data = resp.json()
+        universe = [HLAssetInfo.model_validate(a) for a in data[0]["universe"]]
+        asset_ctxs = [HLAssetCtx.model_validate(c) for c in data[1]]
+        return universe, asset_ctxs
 
-        meta = data[0]  # universe metadata
-        asset_ctxs = data[1]  # per-asset context
-
+    def _parse_rates_and_tickers(
+        self,
+        universe: list[HLAssetInfo],
+        asset_ctxs: list[HLAssetCtx],
+    ) -> tuple[dict[str, FundingRate], dict[str, Ticker]]:
         rates: dict[str, FundingRate] = {}
+        tickers: dict[str, Ticker] = {}
         now = datetime.now(timezone.utc)
 
-        for asset_info, ctx in zip(meta["universe"], asset_ctxs):
-            coin = asset_info["name"]
-            symbol = hl_symbol_to_normalized(coin)
-            funding_str = ctx.get("funding")
-            if funding_str is None:
-                continue
+        for asset_info, ctx in zip(universe, asset_ctxs):
+            symbol = hl_symbol_to_normalized(asset_info.name)
 
-            rate = Decimal(funding_str)
-            rates[symbol] = FundingRate(
-                symbol=symbol,
-                rate=rate,
-                period_hours=FUNDING_PERIOD_HOURS,
-                apr=rate_to_apr(rate, FUNDING_PERIOD_HOURS),
-                timestamp=now,
-            )
+            if ctx.funding is not None:
+                rate = Decimal(ctx.funding)
+                rates[symbol] = FundingRate(
+                    symbol=symbol,
+                    rate=rate,
+                    period_hours=FUNDING_PERIOD_HOURS,
+                    apr=rate_to_apr(rate, FUNDING_PERIOD_HOURS),
+                    timestamp=now,
+                )
 
-        logger.debug("HL: fetched {} funding rates", len(rates))
+            if ctx.markPx is not None:
+                tickers[symbol] = Ticker(
+                    symbol=symbol,
+                    mark_price=Decimal(ctx.markPx),
+                    index_price=Decimal(ctx.oraclePx) if ctx.oraclePx else None,
+                    volume_24h=float(ctx.dayNtlVlm or 0),
+                )
+
+        return rates, tickers
+
+    async def get_market_data(self) -> tuple[dict[str, FundingRate], dict[str, Ticker]]:
+        """Fetch rates and tickers in one request."""
+        universe, asset_ctxs = await self._fetch_meta_and_asset_ctxs()
+        rates, tickers = self._parse_rates_and_tickers(universe, asset_ctxs)
+        logger.debug("HL: {} rates, {} tickers", len(rates), len(tickers))
+        return rates, tickers
+
+    async def get_funding_rates(self) -> dict[str, FundingRate]:
+        rates, _ = await self.get_market_data()
         return rates
 
     async def get_tickers(self) -> dict[str, Ticker]:
-        """Fetch mark prices and volumes via metaAndAssetCtxs."""
-        resp = await self._client.post(
-            f"{self._base_url}/info",
-            json={"type": "metaAndAssetCtxs"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-        meta = data[0]
-        asset_ctxs = data[1]
-
-        tickers: dict[str, Ticker] = {}
-        for asset_info, ctx in zip(meta["universe"], asset_ctxs):
-            coin = asset_info["name"]
-            symbol = hl_symbol_to_normalized(coin)
-            mark = ctx.get("markPx")
-            if mark is None:
-                continue
-
-            tickers[symbol] = Ticker(
-                symbol=symbol,
-                mark_price=Decimal(mark),
-                index_price=Decimal(ctx["oraclePx"]) if ctx.get("oraclePx") else None,
-                volume_24h=float(ctx.get("dayNtlVlm", 0)),
-            )
-
-        logger.debug("HL: fetched {} tickers", len(tickers))
+        _, tickers = await self.get_market_data()
         return tickers
 
+    async def start_stream(self, state: MarketState) -> None:
+        """Placeholder — WS implementation in hyperliquid_ws.py."""
+        raise NotImplementedError("Use HyperliquidWsFeed for streaming")
+
     async def close(self) -> None:
-        await self._client.aclose()
+        await self._client.close()
