@@ -3,17 +3,18 @@
 ## Phase 0: Foundation
 **Цель:** Подключиться к Hyperliquid + Aster, получить funding rates
 
-- [ ] Проект (pyproject.toml, структура, .env)
-- [ ] Core models (FundingRate, Ticker, Position)
-- [ ] Hyperliquid connector (через `hyperliquid-python-sdk`)
-  - [ ] Получить meta (все coins, funding rates, mark prices)
+- [x] Проект (pyproject.toml, структура, .env)
+- [x] Core models (FundingRate, Ticker)
+- [x] Hyperliquid REST connector
+  - [x] Получить meta (coins, funding rates, mark prices)
   - [ ] Получить orderbook (l2Book)
-  - [ ] Подключить WebSocket (allMids)
-- [ ] Aster connector (через `aster-connector-python`)
-  - [ ] Получить funding rates (premiumIndex)
-  - [ ] Получить тикеры (ticker/24hr)
-- [ ] Маппинг общих символов между HL и Aster
-- [ ] Скрипт: вывести таблицу funding diff
+  - [x] Подготовлен WebSocket feed (allMids)
+- [x] Aster REST connector
+  - [x] Получить funding rates (premiumIndex)
+  - [x] Получить тикеры (ticker/24hr)
+  - [x] Подготовлен WebSocket feed (miniTicker)
+- [x] Маппинг общих символов между HL и Aster
+- [x] Скрипт: вывести таблицу funding diff
 
 **Готово когда:** скрипт выводит:
 ```
@@ -26,13 +27,16 @@
 ## Phase 1: Screener MVP
 **Цель:** Рабочий скринер Hyperliquid ↔ Aster
 
-- [ ] Aggregator — периодический сбор rates с обеих бирж
-- [ ] Нормализация: HL 1h → APR, Aster 8h → APR
-- [ ] Opportunity Finder + combined scoring (basis + funding - fees)
+- [x] Aggregator — периодический сбор rates с обеих бирж
+- [x] Нормализация: HL 1h → APR, Aster 8h → APR
+- [x] Opportunity Finder + combined scoring (basis + funding - fees)
 - [ ] Фильтры: min APR, min volume, persistence gate
-- [ ] Basis calculation (price diff между биржами)
-- [ ] CLI вывод opportunities (rich/tabulate)
-- [ ] Автообновление каждые 5-10 сек
+- [x] Basis calculation (price diff между биржами)
+- [x] CLI вывод opportunities
+- [x] Автообновление каждые 5-10 сек
+- [x] In-memory market state для zero-IO hot path
+- [x] Resilient HTTP (retry/backoff/rate-limit handling)
+- [ ] WS ingestion как основной runtime режим
 
 **Готово когда:** обновляемая таблица top opportunities
 
@@ -79,3 +83,11 @@
 - [ ] Spot + Futures стратегия
 - [ ] Backtesting
 - [ ] ML predicted rates
+
+---
+
+## Текущая стадия
+
+- Фактическое состояние: поздний Phase 1
+- На проде уже работает: polling-based MVP screener
+- Следующий ключевой шаг: перевести ingestion в WS-first режим и добавить persistence gate

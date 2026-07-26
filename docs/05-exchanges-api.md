@@ -37,7 +37,6 @@ WS: allMids, l2Book, userFills, userFundings
 ```
 Base URL: https://fapi.asterdex.com
 Auth: V3 (EIP-712, рекомендуемый) или V1 (HMAC, legacy)
-Python SDK: pip install aster-connector-python
 Интерфейс: Binance-совместимый (символы BTCUSDT, стандартные params)
 
 GET /fapi/v1/premiumIndex         # Funding rate + mark price
@@ -93,11 +92,16 @@ SYMBOL_MAP = {
 ## Python SDK dependencies
 
 ```
-# Hyperliquid
-hyperliquid-python-sdk     # Official SDK
-eth-account                # EIP-712 signing
+# Текущий код (Phase 1)
+httpx                      # REST connectors
+websockets                 # WS feeds
+pydantic                   # response validation schemas
 
-# Aster  
-aster-connector-python     # Official SDK (Binance-like interface)
+# Дальше (Phase 3, execution)
 eth-account                # EIP-712 signing (V3)
 ```
+
+Примечание:
+
+- На текущей стадии используется `httpx` с собственными адаптерами.
+- Официальные SDK можно подключить позже, если они дадут преимущество в execution-части.

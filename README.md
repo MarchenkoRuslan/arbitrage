@@ -2,51 +2,65 @@
 
 ## Обзор
 
-Автоматизированная система арбитража ставок финансирования (funding rate) на криптовалютных perpetual futures биржах. Система состоит из двух основных компонентов:
+Система для поиска арбитражных возможностей по funding rate между Hyperliquid и Aster.
 
-1. **Screener** — мониторинг и поиск арбитражных возможностей по ставкам фандинга между биржами
-2. **Trading Engine** — одновременное открытие хеджированных позиций на нескольких биржах
+Текущий фокус: быстрый и надежный screener (read-only), который:
+1. Собирает funding/price данные с двух бирж
+2. Нормализует ставки в APR
+3. Считает combined score (funding edge + basis - fee impact)
+4. Выводит top opportunities
 
-## Стратегии
+## Текущий статус
 
-- **Futures + Futures** — противоположные позиции на разных биржах, заработок на разнице funding rate
-- **Spot + Futures** — покупка на споте + шорт на фьючерсах при положительном фандинге
-- **Basis + Funding Combined** — заработок на сближении цен + фандинг как двойной источник профита
-- **Funding Insurance** — фандинг покрывает негативный базис (страховка)
+- Stage: Phase 1 (рабочий MVP screener)
+- Реализовано: коннекторы, нормализация, state cache, resilient HTTP, scoring, CLI вывод
+- Подготовлено: WS feed-модули для перехода на event-driven ingest
+- Не реализовано: execution engine, risk automation, alerts/API/dashboard
 
-## Стек технологий
-
-- **Язык:** Python 3.12+
-- **Async:** asyncio + aiohttp
-- **Биржевые API:** ccxt (unified) + native adapters
-- **Data:** pandas, numpy
-- **Storage:** PostgreSQL + Redis
-- **UI:** FastAPI + WebSocket dashboard
-
-## Структура проекта
+## Реализованная структура
 
 ```
 arbitrage/
-├── docs/                    # Документация и спецификации
+├── docs/
 ├── src/
-│   ├── core/               # Базовые типы, конфигурация, утилиты
-│   ├── exchanges/          # Адаптеры бирж (unified interface)
-│   ├── screener/           # Модуль скрининга возможностей
-│   ├── strategy/           # Логика стратегий и economics
-│   ├── execution/          # Исполнение ордеров, хеджирование
-│   ├── risk/               # Риск-менеджмент и лимиты
-│   ├── data/               # Сбор и хранение данных
-│   └── api/                # REST/WS API для dashboard
-├── tests/
-├── config/
-└── scripts/
+│   ├── core/
+│   │   ├── app.py          # Оркестратор приложения
+│   │   ├── config.py       # Конфигурация через env
+│   │   ├── http.py         # HTTP retry/backoff клиент
+│   │   ├── models.py       # Pydantic models
+│   │   ├── normalize.py    # APR/symbol normalization
+│   │   └── state.py        # In-memory market state cache
+│   ├── exchanges/
+│   │   ├── base.py
+│   │   ├── aster.py
+│   │   ├── aster_ws.py
+│   │   ├── hyperliquid.py
+│   │   ├── hyperliquid_ws.py
+│   │   └── schemas.py
+│   ├── output/
+│   │   └── console.py      # Табличный вывод
+│   ├── screener/
+│   │   └── finder.py       # Поиск и ранжирование opportunities
+│   └── main.py             # CLI entrypoint
+├── pyproject.toml
+└── README.md
 ```
 
 ## Быстрый старт
 
 ```bash
-# TODO: будет добавлено по мере разработки
+python -m pip install -e ".[dev]"
+python -m src.main
+python -m src.main --loop
 ```
+
+## Основные env-параметры
+
+- `ARB_MIN_SCORE_APR` (default: `5.0`)
+- `ARB_FEE_PER_SIDE` (default: `0.05`)
+- `ARB_EXPECTED_HOLD_HOURS` (default: `72.0`)
+- `ARB_BASIS_WEIGHT` (default: `0.1`)
+- `ARB_LOOP_INTERVAL_S` (default: `10`)
 
 ## Документация
 

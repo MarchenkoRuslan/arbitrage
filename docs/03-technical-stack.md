@@ -5,72 +5,64 @@
 | Компонент | Выбор | Зачем |
 |-----------|-------|-------|
 | Язык | Python 3.12+ | Экосистема, быстрая разработка |
-| Async | asyncio | Параллельные WS соединения |
-| Биржи | hyperliquid-python-sdk + aster-connector-python | Native SDKs |
-| Signing | eth-account | EIP-712 для обоих venues |
+| Async | asyncio | Параллельные IO задачи |
+| HTTP | httpx | Асинхронные REST запросы |
+| WS | websockets | Потоковые real-time обновления |
 | Types | Pydantic | Валидация, schemas |
-| Numbers | Decimal | Точная арифметика цен |
+| Settings | pydantic-settings | Конфиг из env |
+| Logging | loguru | Структурированное логирование |
+| Numbers | Decimal | Точная арифметика цен и ставок |
 
 ## Инфраструктура
 
 | Компонент | Выбор | Зачем |
 |-----------|-------|-------|
-| DB | PostgreSQL | История, позиции |
-| Cache | Redis | Real-time данные, pub/sub |
-| API | FastAPI | REST + WebSocket |
-| Notifications | Telegram Bot | Alerts |
-| Deploy | Docker | Простой деплой |
-| Logs | Loguru | Структурированное логирование |
+| Runtime | In-memory state | Минимальная latency hot path |
+| Resilience | Retry/backoff HTTP client | Стабильность при сетевых сбоях |
+| Package | pyproject + editable install | Простой dev workflow |
+| Tests | pytest + pytest-asyncio | Проверка async логики |
 
-## Почему Python, а не C++
+## Почему такой минимум на старте
 
-- Funding arb — **не HFT**. Funding выплаты каждые 1-8 часов.
-- Задержка в 1-2 секунды при открытии некритична
-- ccxt — самая зрелая unified crypto библиотека
-- Один человек может написать и поддерживать всю систему
+- Сначала нужен рабочий и проверяемый скринер, а не полный торговый комбайн
+- Минимальная архитектура уже учитывает масштабирование: state cache, DI, протоколы, WS модули
+- Холодный путь может делать IO, горячий путь скринера работает по данным из памяти
 
 ## Структура кода
 
 ```
 src/
 ├── core/
-│   ├── config.py          # Конфигурация (env + yaml)
+│   ├── app.py             # Оркестратор приложения
+│   ├── config.py          # Конфигурация (env)
+│   ├── http.py            # Retry/backoff HTTP клиент
 │   ├── models.py          # Pydantic models
-│   └── utils.py           # Helpers
+│   ├── normalize.py       # APR и symbol normalization
+│   └── state.py           # Shared market state cache
 ├── exchanges/
-│   ├── base.py            # Abstract connector
-│   ├── binance.py
-│   ├── bybit.py
-│   ├── okx.py
-│   └── hyperliquid.py
+│   ├── base.py            # Connector protocol
+│   ├── schemas.py         # API response schemas
+│   ├── hyperliquid.py     # REST connector
+│   ├── hyperliquid_ws.py  # WS feed (prepared)
+│   ├── aster.py           # REST connector
+│   └── aster_ws.py        # WS feed (prepared)
+├── output/
+│   └── console.py         # Табличный вывод
 ├── screener/
-│   ├── aggregator.py      # Сбор данных
-│   ├── finder.py          # Поиск opportunities
-│   └── filters.py         # Фильтрация
-├── trader/
-│   ├── executor.py        # Открытие/закрытие позиций
-│   ├── position_mgr.py    # Управление позициями
-│   └── risk.py            # Risk checks
-├── notifications/
-│   └── telegram.py
+│   └── finder.py          # Поиск и scoring opportunities
 └── main.py
 ```
 
-## Комиссии по биржам
+## Текущие зависимости
 
-| Биржа | Maker | Taker | Roundtrip |
-|-------|-------|-------|-----------|
-| Binance | 0.02% | 0.04% | 0.16% |
-| Bybit | 0.02% | 0.055% | 0.15% |
-| OKX | 0.02% | 0.05% | 0.14% |
-| Hyperliquid | 0.01% | 0.035% | 0.09% |
-| Bitget | 0.02% | 0.06% | 0.16% |
+- `httpx`
+- `pydantic`
+- `pydantic-settings`
+- `loguru`
+- `websockets`
 
-## Rate Limits
+Dev:
 
-| Биржа | REST | WS | Стратегия |
-|-------|------|-----|-----------|
-| Binance | 1200 req/min | 200 streams | Batch + WS |
-| Bybit | 120 req/min | 500 subs | WS primary |
-| OKX | 20 req/2sec | 240 conn | Throttle |
-| Hyperliquid | No doc limit | Generous | Monitor 429s |
+- `pytest`
+- `pytest-asyncio`
+- `ruff`

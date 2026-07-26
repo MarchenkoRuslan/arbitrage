@@ -6,22 +6,26 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     ARBITRAGE SYSTEM                         │
 │                                                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │ Binance  │  │  Bybit   │  │   OKX    │  │Hyperliquid│  │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘   │
-│       └──────────────┼──────────────┼──────────────┘        │
-│                      │                                      │
-│              ┌───────▼───────┐                               │
-│              │  SCREENER     │ ← Сбор rates, поиск пар      │
-│              └───────┬───────┘                               │
-│                      │                                      │
-│              ┌───────▼───────┐                               │
-│              │  TRADER       │ ← Открытие/закрытие позиций  │
-│              └───────┬───────┘                               │
-│                      │                                      │
-│              ┌───────▼───────┐                               │
-│              │  RISK/MONITOR │ ← Мониторинг, alerts         │
-│              └───────────────┘                               │
+│  ┌──────────────┐                  ┌──────────────────────┐  │
+│  │ Hyperliquid  │                  │        Aster         │  │
+│  └──────┬───────┘                  └─────────┬────────────┘  │
+│         └──────────────┬─────────────────────┘               │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ Ingestion Layer    │ ← REST + WS feeds        │
+│              └─────────┬──────────┘                           │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ MarketState Cache  │ ← In-memory shared state │
+│              └─────────┬──────────┘                           │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ Screener           │ ← scoring + ranking      │
+│              └─────────┬──────────┘                           │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ Output/Alerts      │ ← CLI now, API later     │
+│              └────────────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -31,16 +35,15 @@
 
 ### 1. Exchange Connectors
 
-Единый интерфейс для всех бирж (через ccxt + native adapters).
+Единый интерфейс для venues (native adapters + protocol).
 
 ```python
-class ExchangeConnector(ABC):
-    async def get_funding_rates(self, symbols: list[str]) -> dict[str, FundingRate]
-    async def get_tickers(self, symbols: list[str]) -> dict[str, Ticker]
-    async def get_positions(self) -> list[Position]
-    async def get_balance(self) -> Balance
-    async def place_order(self, order: OrderRequest) -> OrderResult
-    async def cancel_order(self, order_id: str) -> bool
+class ExchangeConnector(Protocol):
+  async def get_funding_rates(self) -> dict[str, FundingRate]
+  async def get_tickers(self) -> dict[str, Ticker]
+  async def get_market_data(self) -> tuple[dict[str, FundingRate], dict[str, Ticker]]
+  async def start_stream(self, state: MarketState) -> None
+  async def close(self) -> None
 ```
 
 ### 2. Screener
@@ -53,23 +56,25 @@ class ArbitrageOpportunity:
     symbol: str
     long_exchange: str
     short_exchange: str
-    funding_diff: Decimal       # Разница ставок
-    apr: Decimal                # Годовая доходность
+    funding_diff_apr: Decimal   # Разница ставок (APR)
     basis_bps: Decimal          # Ценовой базис
-    combined_score: Decimal     # funding + basis - fees
-    volume_min: Decimal         # Минимальный volume
-    funding_persistence_h: int  # Сколько часов rate держится
-    min_profitable_hours: Decimal
+    combined_score: Decimal     # funding - fee_impact + basis_weight*basis
 ```
 
 **Логика:**
-1. Собрать funding rates по всем парам на всех биржах
-2. Для каждого символа найти пары бирж с максимальной разницей
+1. Ingestion обновляет `MarketState` (REST polling, далее WS-first)
+2. Для каждого общего символа найти направление long/short по APR
 3. Рассчитать basis (price diff) и combined score
-4. Отфильтровать: min score, min volume, persistence gate
+4. Отфильтровать: min score (persistence gate в следующем шаге)
 5. Ранжировать по combined_score
 
-### 3. Trader (Execution)
+### 3. App Orchestrator
+
+- Управляет lifecycle: startup, polling loop, graceful shutdown
+- Обновляет `MarketState`
+- Запускает screener и вывод
+
+### 4. Trader (Execution, planned)
 
 Одновременное открытие/закрытие позиций.
 
@@ -80,7 +85,7 @@ class ArbitrageOpportunity:
 - Rollback при неудаче одной ноги
 - Reconciliation при restart
 
-### 4. Risk/Monitor
+### 5. Risk/Monitor (planned)
 
 - Margin ratio мониторинг
 - ADL detection
@@ -94,8 +99,11 @@ class ArbitrageOpportunity:
 ## Потоки данных
 
 ```
-Скрининг (каждые 5-10 сек):
-  Exchanges → Funding Rates → Screener → Opportunities → Dashboard/Telegram
+Текущий runtime (polling):
+  Exchanges → Connectors → MarketState → Screener → CLI
+
+Целевой runtime (WS-first):
+  WS Feeds + REST Snapshot/Recovery → MarketState → Screener → Alerts/API
 
 Открытие позиции:
   Signal → Risk Check → Size Calc → Parallel Orders → Position Record
@@ -112,6 +120,6 @@ class ArbitrageOpportunity:
 ## Режимы работы
 
 1. **Screener-only** — показывает возможности, не торгует
-2. **Manual** — скринер + исполнение по команде
-3. **Semi-auto** — авто-вход по фильтрам, ручной выход
-4. **Full-auto** — полная автоматизация входа/выхода
+2. **Manual** — planned
+3. **Semi-auto** — planned
+4. **Full-auto** — planned
