@@ -5,13 +5,13 @@ from src.core.models import ArbitrageOpportunity, ValidatedOpportunity
 from src.core.state import MarketState
 
 
-def validate_opportunities(
+async def validate_opportunities(
     opportunities: list[ArbitrageOpportunity],
     state: MarketState,
     settings: Settings,
 ) -> list[ValidatedOpportunity]:
     """Run pre-entry checks on scored opportunities and assign readiness status."""
-    state.prune_signals(max_age_s=settings.anti_churn_cooldown_s * 2)
+    await state.prune_signals(max_age_s=settings.anti_churn_cooldown_s * 2)
     results: list[ValidatedOpportunity] = []
 
     for opp in opportunities:
@@ -57,12 +57,12 @@ def validate_opportunities(
             # Only record signal on first transition; don't re-record on subsequent polls
             last_signal = state.get_last_signal(opp.symbol)
             if last_signal is None:
-                state.record_signal(opp.symbol, opp.combined_score)
+                await state.record_signal(opp.symbol, opp.combined_score)
             else:
                 last_ts, _ = last_signal
                 age_s = datetime.now(timezone.utc).timestamp() - last_ts
                 if age_s >= settings.anti_churn_cooldown_s:
-                    state.record_signal(opp.symbol, opp.combined_score)
+                    await state.record_signal(opp.symbol, opp.combined_score)
 
         results.append(ValidatedOpportunity(opportunity=opp, status=status, reasons=reasons))
 

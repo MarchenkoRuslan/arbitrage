@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     lighter_fee_per_side: float = 0.0
     expected_hold_hours: float = 72.0
     basis_weight: float = 0.5
-    loop_interval_s: int = 30
-    stale_data_s: float = 30.0
+    loop_interval_s: float = 30.0
+    stale_data_s: float = 35.0
 
     # Exchanges
     hl_base_url: str = "https://api.hyperliquid.xyz"

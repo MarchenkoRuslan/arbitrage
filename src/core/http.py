@@ -33,7 +33,11 @@ class ResilientClient:
                 resp = await method(path, **kwargs)
                 if resp.status_code == 429:
                     last_resp = resp
-                    retry_after = float(resp.headers.get("Retry-After", self._backoff_base * 2))
+                    try:
+                        retry_after = float(resp.headers.get("Retry-After", self._backoff_base * 2))
+                    except (ValueError, TypeError):
+                        retry_after = self._backoff_base * 2
+                    retry_after = max(0.1, min(retry_after, 60.0))
                     logger.warning("Rate limited on {}, retry after {:.1f}s", path, retry_after)
                     await asyncio.sleep(retry_after)
                     continue

@@ -30,7 +30,7 @@ def _opp(symbol: str = "BTC", score: float = 50.0, persistence: float = 6.0,
 
 
 def _funding(symbol: str, apr: float) -> FundingRate:
-    return FundingRate(symbol=symbol, rate=Decimal("0.0001"), period_hours=1,
+    return FundingRate(symbol=symbol, period_hours=1,
                        apr=apr, timestamp=datetime(2026, 1, 1, tzinfo=UTC))
 
 
@@ -45,7 +45,7 @@ async def test_validator_marks_ready_when_all_checks_pass() -> None:
     await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
 
     opps = [_opp("BTC", score=50.0)]
-    result = validate_opportunities(opps, state, settings)
+    result = await validate_opportunities(opps, state, settings)
 
     assert len(result) == 1
     assert result[0].status == "ready"
@@ -63,7 +63,7 @@ async def test_validator_marks_watching_when_persistence_insufficient() -> None:
     await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
 
     opps = [_opp("BTC", score=50.0, persistence=2.0)]
-    result = validate_opportunities(opps, state, settings)
+    result = await validate_opportunities(opps, state, settings)
 
     assert result[0].status == "watching"
     assert "persistence" in result[0].reasons[0]
@@ -80,7 +80,7 @@ async def test_validator_marks_blocked_when_breakeven_exceeds_hold() -> None:
     await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
 
     opps = [_opp("BTC", score=50.0, min_profitable_hours=100.0)]
-    result = validate_opportunities(opps, state, settings)
+    result = await validate_opportunities(opps, state, settings)
 
     assert result[0].status == "blocked"
     assert "break-even" in result[0].reasons[0]
@@ -94,15 +94,15 @@ async def test_validator_detects_funding_direction_flip() -> None:
 
     # Simulate alternating direction via paired snapshots:
     # HL>Lighter, HL<Lighter, HL>Lighter
-    state.record_snapshot("BTC", _funding("BTC", 20.0), _funding("BTC", 5.0))
-    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 20.0))
-    state.record_snapshot("BTC", _funding("BTC", 20.0), _funding("BTC", 5.0))
+    await state.record_snapshot("BTC", {"hyperliquid": _funding("BTC", 20.0), "lighter": _funding("BTC", 5.0)})
+    await state.record_snapshot("BTC", {"hyperliquid": _funding("BTC", 5.0), "lighter": _funding("BTC", 20.0)})
+    await state.record_snapshot("BTC", {"hyperliquid": _funding("BTC", 20.0), "lighter": _funding("BTC", 5.0)})
 
     await state.update_tickers("hyperliquid", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
     await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
 
     opps = [_opp("BTC", score=50.0)]
-    result = validate_opportunities(opps, state, settings)
+    result = await validate_opportunities(opps, state, settings)
 
     assert result[0].status == "watching"
     assert "flipped" in result[0].reasons[0]
@@ -128,7 +128,7 @@ async def test_validator_sorts_ready_before_watching() -> None:
         _opp("BTC", score=50.0, persistence=2.0),  # fails persistence → watching
         _opp("ETH", score=30.0, persistence=8.0),  # passes → ready
     ]
-    result = validate_opportunities(opps, state, settings)
+    result = await validate_opportunities(opps, state, settings)
 
     assert result[0].status == "ready"
     assert result[0].opportunity.symbol == "ETH"
@@ -152,17 +152,17 @@ async def test_validator_anti_churn_suppresses_repeated_signal() -> None:
     opps = [_opp("BTC", score=50.0)]
 
     # First call: should be ready and record signal
-    result1 = validate_opportunities(opps, state, settings)
+    result1 = await validate_opportunities(opps, state, settings)
     assert result1[0].status == "ready"
 
     # Second call with same score: should be watching (cooldown)
-    result2 = validate_opportunities(opps, state, settings)
+    result2 = await validate_opportunities(opps, state, settings)
     assert result2[0].status == "watching"
     assert "cooldown" in result2[0].reasons[0]
 
     # Third call with score > 1.5x: should be ready again
     high_opps = [_opp("BTC", score=80.0)]
-    result3 = validate_opportunities(high_opps, state, settings)
+    result3 = await validate_opportunities(high_opps, state, settings)
     assert result3[0].status == "ready"
 
 
@@ -184,14 +184,14 @@ async def test_validator_ready_does_not_re_record_signal_on_subsequent_polls() -
     opps = [_opp("BTC", score=50.0)]
 
     # First call: ready, signal recorded
-    result1 = validate_opportunities(opps, state, settings)
+    result1 = await validate_opportunities(opps, state, settings)
     assert result1[0].status == "ready"
 
     # Call with improved score to pass anti-churn
     high_opps = [_opp("BTC", score=80.0)]
-    result2 = validate_opportunities(high_opps, state, settings)
+    result2 = await validate_opportunities(high_opps, state, settings)
     assert result2[0].status == "ready"
 
     # Same high score again — should still be ready (signal not re-recorded at new timestamp)
-    result3 = validate_opportunities(high_opps, state, settings)
+    result3 = await validate_opportunities(high_opps, state, settings)
     assert result3[0].status == "ready"

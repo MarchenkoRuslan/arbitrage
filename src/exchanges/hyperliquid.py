@@ -55,7 +55,6 @@ class HyperliquidConnector:
                 rate = Decimal(ctx.funding)
                 rates[symbol] = FundingRate(
                     symbol=symbol,
-                    rate=rate,
                     period_hours=FUNDING_PERIOD_HOURS,
                     apr=rate_to_apr(rate, FUNDING_PERIOD_HOURS),
                     timestamp=now,

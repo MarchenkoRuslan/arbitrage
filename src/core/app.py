@@ -67,7 +67,9 @@ class App:
         # Record paired snapshots only for symbols where both exchanges have data
         common = set(hl_rates) & set(lighter_rates)
         for symbol in common:
-            self.state.record_snapshot(symbol, hl_rates[symbol], lighter_rates[symbol])
+            await self.state.record_snapshot(
+                symbol, {"hyperliquid": hl_rates[symbol], "lighter": lighter_rates[symbol]}
+            )
 
         logger.info(
             "State updated: HL={} Lighter={} | Common={}",
@@ -75,7 +77,7 @@ class App:
         )
 
         opps = find_opportunities_from_state(self.state, self.settings)
-        validated = validate_opportunities(opps, self.state, self.settings)
+        validated = await validate_opportunities(opps, self.state, self.settings)
         print_opportunities(validated)
 
         ready_count = sum(1 for v in validated if v.status == "ready")

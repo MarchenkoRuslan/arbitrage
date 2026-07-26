@@ -19,7 +19,7 @@ The current implementation is a read-only screener. Trading, risk automation, an
 - Keep all new documentation, comments, commit messages, and user-facing text in English.
 - Prefer minimal, targeted changes over broad refactors.
 - Preserve the current architecture: exchange connectors -> shared market state -> screener -> console output.
-- Use Decimal-safe logic for monetary values and avoid float-based pricing changes unless the code already does so.
+- Use Decimal for prices and order quantities. Use float for rates and scoring (rates are inherently imprecise estimates from approximated formulas).
 - Do not add execution-engine or risk-automation behavior unless the task explicitly asks for it.
 - Keep the screener path read-only unless the task explicitly involves order placement or account actions.
 - Reuse the existing connector and normalization patterns instead of introducing exchange-specific shortcuts in unrelated layers.

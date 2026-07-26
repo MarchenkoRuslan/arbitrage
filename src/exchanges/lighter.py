@@ -23,6 +23,7 @@ class LighterConnector:
     name = "lighter"
 
     def __init__(self, settings: Settings) -> None:
+        self._settings = settings
         self._client = ResilientClient(
             base_url=settings.lighter_base_url,
             timeout=settings.http_timeout,
@@ -44,7 +45,8 @@ class LighterConnector:
         for raw in books_raw:
             try:
                 book = LighterOrderBook(**raw)
-            except Exception:
+            except Exception as e:
+                logger.warning("Lighter: failed to parse order book entry {}: {}", raw.get("symbol", "?"), e)
                 continue
 
             if book.market_type != "perp" or book.status != "active":
@@ -64,7 +66,6 @@ class LighterConnector:
             rate = (mark - index) / index / 8
             rates[symbol] = FundingRate(
                 symbol=symbol,
-                rate=rate,
                 period_hours=FUNDING_PERIOD_HOURS,
                 apr=rate_to_apr(rate, FUNDING_PERIOD_HOURS),
                 timestamp=now,

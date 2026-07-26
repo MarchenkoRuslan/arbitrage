@@ -12,10 +12,9 @@ class StateKey(NamedTuple):
 
 
 class FundingSnapshot(NamedTuple):
-    """A paired observation of funding rates from both exchanges in one poll cycle."""
+    """A paired observation of funding rates from multiple exchanges in one poll cycle."""
     timestamp: datetime
-    hl_rate: FundingRate | None
-    lighter_rate: FundingRate | None
+    rates: dict[str, FundingRate]
 
 
 class MarketState:
@@ -66,21 +65,20 @@ class MarketState:
             self._tickers[key] = ticker
             self._updated_at[key] = datetime.now(timezone.utc)
 
-    def record_snapshot(
+    async def record_snapshot(
         self,
         symbol: str,
-        hl_rate: FundingRate | None,
-        lighter_rate: FundingRate | None,
+        rates: dict[str, FundingRate],
     ) -> None:
         """Record a paired funding observation from a single poll cycle."""
         snap = FundingSnapshot(
             timestamp=datetime.now(timezone.utc),
-            hl_rate=hl_rate,
-            lighter_rate=lighter_rate,
+            rates=rates,
         )
-        self._snapshots.setdefault(
-            symbol, deque(maxlen=self._funding_history_limit)
-        ).append(snap)
+        async with self._lock:
+            self._snapshots.setdefault(
+                symbol, deque(maxlen=self._funding_history_limit)
+            ).append(snap)
 
     def get_funding(self, exchange: str) -> dict[str, FundingRate]:
         return {
@@ -152,21 +150,19 @@ class MarketState:
 
     @staticmethod
     def _snap_rate_for(snap: FundingSnapshot, exchange: str) -> FundingRate | None:
-        if exchange == "hyperliquid":
-            return snap.hl_rate
-        if exchange == "lighter":
-            return snap.lighter_rate
-        return None
+        return snap.rates.get(exchange)
 
-    def record_signal(self, symbol: str, score: float) -> None:
-        self._signaled[symbol] = (datetime.now(timezone.utc).timestamp(), score)
+    async def record_signal(self, symbol: str, score: float) -> None:
+        async with self._lock:
+            self._signaled[symbol] = (datetime.now(timezone.utc).timestamp(), score)
 
     def get_last_signal(self, symbol: str) -> tuple[float, float] | None:
         """Returns (timestamp, score) of last signal for symbol, or None."""
         return self._signaled.get(symbol)
 
-    def prune_signals(self, max_age_s: float) -> None:
+    async def prune_signals(self, max_age_s: float) -> None:
         now = datetime.now(timezone.utc).timestamp()
-        expired = [s for s, (ts, _) in self._signaled.items() if now - ts > max_age_s]
-        for s in expired:
-            del self._signaled[s]
+        async with self._lock:
+            expired = [s for s, (ts, _) in self._signaled.items() if now - ts > max_age_s]
+            for s in expired:
+                del self._signaled[s]

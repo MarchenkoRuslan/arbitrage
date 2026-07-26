@@ -42,7 +42,6 @@ def test_hyperliquid_parse_rates_and_tickers_skips_missing_fields() -> None:
 
     assert list(rates) == ["BTC"]
     assert list(tickers) == ["BTC"]
-    assert rates["BTC"].rate == Decimal("0.0002")
     assert rates["BTC"].apr == 175.2
     assert tickers["BTC"].mark_price == Decimal("100")
     assert tickers["BTC"].index_price == Decimal("101")

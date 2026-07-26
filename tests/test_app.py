@@ -12,7 +12,7 @@ def _funding(symbol: str, apr: float) -> FundingRate:
     from datetime import UTC, datetime
 
     return FundingRate(
-        symbol=symbol, rate=Decimal("0.0001"), period_hours=1,
+        symbol=symbol, period_hours=1,
         apr=apr, timestamp=datetime(2026, 1, 1, tzinfo=UTC),
     )
 

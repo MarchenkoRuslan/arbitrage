@@ -10,6 +10,7 @@ def find_opportunities_from_state(state: MarketState, settings: Settings) -> lis
     hl_tickers = state.get_tickers("hyperliquid")
     lighter_tickers = state.get_tickers("lighter")
 
+    directions: dict[str, tuple[str, str]] = {}
     persistence_by_symbol: dict[str, float] = {}
     fresh_symbols: set[str] = set()
     for symbol in set(hl_rates) & set(lighter_rates) & set(hl_tickers) & set(lighter_tickers):
@@ -29,6 +30,7 @@ def find_opportunities_from_state(state: MarketState, settings: Settings) -> lis
         if persistence_hours < settings.min_persistence_hours:
             continue
 
+        directions[symbol] = (long_exchange, short_exchange)
         persistence_by_symbol[symbol] = persistence_hours
         fresh_symbols.add(symbol)
 
@@ -38,6 +40,7 @@ def find_opportunities_from_state(state: MarketState, settings: Settings) -> lis
         {s: hl_tickers[s] for s in fresh_symbols},
         {s: lighter_tickers[s] for s in fresh_symbols},
         settings,
+        directions=directions,
     )
 
     for opp in opportunities:
@@ -52,6 +55,7 @@ def find_opportunities(
     hl_tickers: dict[str, Ticker],
     lighter_tickers: dict[str, Ticker],
     settings: Settings,
+    directions: dict[str, tuple[str, str]] | None = None,
 ) -> list[ArbitrageOpportunity]:
     """Find funding arbitrage opportunities between Hyperliquid and Lighter."""
     roundtrip_fee_bps = (settings.hl_fee_per_side + settings.lighter_fee_per_side) * 2 * 100
@@ -70,25 +74,40 @@ def find_opportunities(
         if min(hl_tick.volume_24h, lighter_tick.volume_24h) < settings.min_volume_24h:
             continue
 
-        # OI filter: skip if open interest is known and below threshold
+        # OI filter: require at least one exchange to report OI above threshold
         if settings.min_open_interest > 0:
             hl_oi = hl_tick.open_interest
             lighter_oi = lighter_tick.open_interest
-            if hl_oi is not None and hl_oi < settings.min_open_interest:
+            if hl_oi is None and lighter_oi is None:
                 continue
-            if lighter_oi is not None and lighter_oi < settings.min_open_interest:
+            effective_oi = min(
+                hl_oi if hl_oi is not None else float("inf"),
+                lighter_oi if lighter_oi is not None else float("inf"),
+            )
+            if effective_oi < settings.min_open_interest:
                 continue
 
-        if hl.apr > lighter.apr:
+        # Use pre-computed direction if available, otherwise compute here
+        if directions and symbol in directions:
+            long_exchange, short_exchange = directions[symbol]
+        elif hl.apr > lighter.apr:
             long_exchange, short_exchange = "lighter", "hyperliquid"
-            long_rate_apr, short_rate_apr = lighter.apr, hl.apr
-            long_tick, short_tick = lighter_tick, hl_tick
         else:
             long_exchange, short_exchange = "hyperliquid", "lighter"
+
+        if long_exchange == "hyperliquid":
             long_rate_apr, short_rate_apr = hl.apr, lighter.apr
             long_tick, short_tick = hl_tick, lighter_tick
+        else:
+            long_rate_apr, short_rate_apr = lighter.apr, hl.apr
+            long_tick, short_tick = lighter_tick, hl_tick
 
         funding_diff_apr = short_rate_apr - long_rate_apr
+
+        # Skip zero funding edge — not a funding arbitrage opportunity
+        if funding_diff_apr <= 0:
+            continue
+
         funding_edge_bps = funding_diff_apr * (hold_hours / 8760) * 100
         hourly_funding_bps = funding_edge_bps / hold_hours if hold_hours > 0 else 0.0
 

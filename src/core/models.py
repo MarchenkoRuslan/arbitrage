@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 class FundingRate(BaseModel):
     symbol: str
-    rate: Decimal
     period_hours: int
     apr: float
     timestamp: datetime
