@@ -46,4 +46,5 @@ The current implementation is a read-only screener. Trading, risk automation, an
 
 - Keep README and docs aligned with the current implementation status.
 - Prefer short, concrete explanations over roadmap-style prose.
-- If a task changes behavior, update the relevant doc page only when the behavior is user-visible or architectural.
+- If a task changes user-visible behavior or architecture, update relevant docs in the same change set.
+- Follow `docs/10-documentation-maintenance.md` as the default docs update workflow.

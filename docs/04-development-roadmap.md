@@ -99,3 +99,17 @@ KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
 - Actual state: Phase 1.5 (enhanced screener)
 - Already running in production: polling-based screener with validator and anti-churn
 - Next key step: notifications/API layer, then WS-first ingestion
+
+---
+
+## Ongoing Track: Documentation Maintenance
+
+**Goal:** Keep docs, plans, and instructions synchronized with implementation.
+
+- [x] Add dedicated API docs for both active exchanges (Hyperliquid + Lighter)
+- [x] Remove duplicated and stale sections from API references
+- [x] Align README/docs links with current structure
+- [x] Add explicit documentation maintenance workflow and update checklist
+- [x] Add CI check to fail on broken doc links
+- [x] Extend doc checks to validate markdown heading anchors
+- [x] Add release-note template for behavior-changing updates

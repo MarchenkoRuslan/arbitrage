@@ -58,9 +58,8 @@ pytest-asyncio
 ruff
 ```
 
-No websockets library — both exchanges are polled via REST only. WebSocket ingestion is planned but not implemented.
-- `loguru`
-- `websockets`
+No WebSocket runtime dependency is used at this stage — both exchanges are polled via REST.
+WebSocket ingestion is planned in roadmap phases.
 
 Dev:
 

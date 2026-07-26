@@ -4,6 +4,9 @@
 
 Dual profit source: price basis (spread convergence) + funding rate.
 
+All numerical examples below are illustrative and should be interpreted with the
+current configured fee model in `ARB_HL_FEE_PER_SIDE` and `ARB_LIGHTER_FEE_PER_SIDE`.
+
 ```
 Total_Profit = Basis_Convergence + Funding_Income - Fees
 ```
@@ -38,15 +41,15 @@ if hours_to_cover > max_holding_hours: SKIP
 ### UMA - ideal case
 ```
 Long Hyperliquid @ $0.3901, Short Lighter @ $0.3932
-Basis: +80.5 bps, APR: 67%, Fees: ~21 bps
-Day 1: basis convergence +59.5 bps + funding 18.4 bps = +78 bps
+Basis: +80.5 bps, APR: 67%, Fees: ~7 bps
+Day 1: basis convergence +59.5 bps + funding 18.4 bps = +70.9 bps
 ```
 
 ### CASHCAT - funding insurance
 ```
 Basis: -54.9 bps (against us), APR: 145%
 Funding: 39.7 bps/day -> breakeven in 1.4 days
-Day 3: +119.1 - 54.9 - 21 = +43.2 bps
+Day 3: +119.1 - 54.9 - 7 = +57.2 bps
 ```
 
 ## Exit Signals

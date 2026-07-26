@@ -185,7 +185,7 @@ python -m src.main --loop
 - `ARB_LIGHTER_FEE_PER_SIDE` (default: `0.0`)
 - `ARB_EXPECTED_HOLD_HOURS` (default: `72.0`)
 - `ARB_BASIS_WEIGHT` (default: `0.5`)
-- `ARB_STALE_DATA_S` (default: `30.0`)
+- `ARB_STALE_DATA_S` (default: `35.0`)
 - `ARB_LOOP_INTERVAL_S` (default: `30`)
 
 ## Limitations
@@ -201,7 +201,11 @@ python -m src.main --loop
 - [Technical Stack](docs/03-technical-stack.md)
 - [Development Roadmap](docs/04-development-roadmap.md)
 - [Exchanges and APIs](docs/05-exchanges-api.md)
+- [Hyperliquid API Reference](docs/api/hyperliquid.md)
+- [Lighter API Reference](docs/api/lighter.md)
 - [References and Sources](docs/06-references.md)
 - [Basis + Funding Strategy](docs/07-strategy-basis-funding.md)
 - [Risks: ADL and Cases](docs/08-risks-adl-cases.md)
 - [Reference Projects](docs/09-reference-projects.md)
+- [Documentation Maintenance Guide](docs/10-documentation-maintenance.md)
+- [Release Notes Template](docs/11-release-notes-template.md)

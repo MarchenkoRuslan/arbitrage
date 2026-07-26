@@ -42,14 +42,14 @@
 
 ### Phase 0-3 (required):
 1. ✅ Entry sequencing
-2. ✅ Maker-first + taker fallback  
+2. ⏳ Maker-first + taker fallback
 3. ✅ Persistence gate
 4. ✅ Round-trip cost model
-5. ✅ Reconciliation at restart
+5. ⏳ Reconciliation at restart
 6. ✅ Combined score (basis + funding - fees)
 
 ### Phase 4-5 (preferred):
-7. Anti-churn logic
+7. ✅ Anti-churn logic
 8. Kaplan-Meier survival
 9. Ops console
 10. Invariant checks
@@ -62,5 +62,5 @@
 |---|---|---|
 | CEX + DEX | Usually one side only | Both |
 | Scoring | Funding only | Basis + Funding |
-| Exchanges | 2 | 6-10 |
-| ADL handling | Flatten | Smart recovery |
+| Exchanges | 2 | 2 active now (more planned) |
+| ADL handling | Flatten | Risk-focused detection and operational playbooks (execution phase planned) |

@@ -1,5 +1,9 @@
 # Exchanges and APIs
 
+Dedicated API references:
+- Hyperliquid: `docs/api/hyperliquid.md`
+- Lighter: `docs/api/lighter.md`
+
 ## Active Venues
 
 | Exchange | Type | Funding Period | Fee | Auth | Status |
@@ -7,7 +11,7 @@
 | Hyperliquid | DEX (Layer 1) | 1h | 0.035% taker | None | ✅ Active |
 | Lighter | DEX (ZK Rollup / ETH) | 1h (approximated) | 0% | None | ✅ Active |
 
-Both APIs are public REST — no API keys, no KYC, no registration required.
+Both current screener connectors use public REST endpoints with no API keys.
 
 ---
 
@@ -117,7 +121,6 @@ Hyperliquid uses EIP-712 signing for trading actions. Lighter execution signing 
 ```
 # Current code (Phase 1)
 httpx                      # REST connectors
-websockets                 # WS feeds
 pydantic                   # response validation schemas
 
 # Later (Phase 3, execution)
@@ -128,3 +131,4 @@ Note:
 
 - At the current stage, the project uses `httpx` with custom adapters.
 - Official SDKs can be adopted later if they provide an execution-side advantage.
+- WebSocket ingestion is planned but not active in runtime yet.
