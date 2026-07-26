@@ -31,7 +31,11 @@ class LighterConnector:
 
     async def get_market_data(self) -> tuple[dict[str, FundingRate], dict[str, Ticker]]:
         resp = await self._client.get("/api/v1/orderBookDetails", params={"filter": "perp"})
-        books_raw: list[dict] = resp.json().get("order_book_details", [])
+        payload = resp.json()
+        books_raw: list[dict] = payload.get("order_book_details", [])
+
+        if not books_raw and payload:
+            logger.warning("Lighter returned non-empty response with no order_book_details")
 
         rates: dict[str, FundingRate] = {}
         tickers: dict[str, Ticker] = {}

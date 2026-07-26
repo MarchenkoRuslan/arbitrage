@@ -96,7 +96,7 @@ def find_opportunities(
         # Use index_price as denominator when both legs provide it (more accurate).
         basis_bps = 0.0
         if long_tick.mark_price > 0 and short_tick.mark_price > 0:
-            if long_tick.index_price and short_tick.index_price:
+            if long_tick.index_price is not None and short_tick.index_price is not None:
                 denom = float(long_tick.index_price + short_tick.index_price) / 2
             else:
                 denom = float(long_tick.mark_price + short_tick.mark_price) / 2

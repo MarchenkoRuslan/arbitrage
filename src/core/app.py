@@ -22,11 +22,19 @@ class App:
 
     async def poll_once(self) -> None:
         """Single poll cycle: fetch from both DEXes, update state, run screener."""
-        results = await asyncio.gather(
-            self.hl.get_market_data(),
-            self.lighter.get_market_data(),
-            return_exceptions=True,
-        )
+        fetch_timeout = self.settings.http_timeout * (self.settings.http_max_retries + 1) + 5
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(
+                    self.hl.get_market_data(),
+                    self.lighter.get_market_data(),
+                    return_exceptions=True,
+                ),
+                timeout=fetch_timeout,
+            )
+        except TimeoutError:
+            logger.error("Poll fetch timed out after {:.0f}s, skipping cycle", fetch_timeout)
+            return
 
         hl_rates: dict = {}
         hl_tickers: dict = {}

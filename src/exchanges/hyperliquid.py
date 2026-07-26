@@ -32,6 +32,11 @@ class HyperliquidConnector:
         data = resp.json()
         universe = [HLAssetInfo.model_validate(a) for a in data[0]["universe"]]
         asset_ctxs = [HLAssetCtx.model_validate(c) for c in data[1]]
+        if len(universe) != len(asset_ctxs):
+            logger.warning(
+                "HL metaAndAssetCtxs length mismatch: universe={} asset_ctxs={}",
+                len(universe), len(asset_ctxs),
+            )
         return universe, asset_ctxs
 
     def _parse_rates_and_tickers(
