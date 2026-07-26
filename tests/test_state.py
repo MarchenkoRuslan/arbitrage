@@ -1,99 +1,66 @@
-from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytest
-
-from src.core.models import FundingRate, Ticker
-from src.core.state import MarketState, StateKey
+from src.core.models import ArbitrageOpportunity
+from src.core.state import PollCache
 
 
-def _funding(symbol: str, apr: float = 12.0) -> FundingRate:
-    return FundingRate(
+def _opp(symbol: str, net_apr: float = 0.75) -> ArbitrageOpportunity:
+    return ArbitrageOpportunity(
         symbol=symbol,
-        rate=Decimal("0.0001"),
-        period_hours=1,
-        apr=apr,
-        timestamp=datetime(2026, 1, 1, tzinfo=UTC),
+        long_exchange="hyperliquid",
+        short_exchange="lighter",
+        long_base_symbol=symbol,
+        short_base_symbol=symbol,
+        net_apr=net_apr,
+        apr_1h=0.8,
+        apr_24h=0.7,
+        apr_7d=0.6,
+        gross_spread_hourly=0.0001,
+        long_funding_rate=Decimal("0.0001"),
+        short_funding_rate=Decimal("0.0003"),
+        volume_24h_usd=1_000_000.0,
+        long_max_leverage=10,
+        short_max_leverage=10,
     )
 
 
-def _ticker(symbol: str, mark_price: str = "100") -> Ticker:
-    return Ticker(
-        symbol=symbol,
-        mark_price=Decimal(mark_price),
-        index_price=Decimal(mark_price),
-        volume_24h=1_000_000,
-    )
+def test_poll_cache_starts_empty_and_stale() -> None:
+    cache = PollCache()
+    assert cache.get_opportunities() == []
+    assert cache.is_stale() is True
+    assert cache.last_updated() is None
 
 
-@pytest.mark.asyncio
-async def test_market_state_update_and_snapshot_reads_are_exchange_scoped() -> None:
-    state = MarketState()
-
-    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 10.0)})
-    await state.update_tickers("aster", {"BTC": _ticker("BTC", "101")})
-
-    funding = state.get_funding("hyperliquid")
-    tickers = state.get_tickers("aster")
-
-    assert funding["BTC"].apr == 10.0
-    assert tickers["BTC"].mark_price == Decimal("101")
-    assert state.get_funding("aster") == {}
-    assert state.get_tickers("hyperliquid") == {}
+def test_poll_cache_update_stores_opportunities() -> None:
+    cache = PollCache()
+    opps = [_opp("BTC"), _opp("ETH")]
+    cache.update(opps)
+    result = cache.get_opportunities()
+    assert len(result) == 2
+    assert result[0].symbol == "BTC"
+    assert result[1].symbol == "ETH"
 
 
-@pytest.mark.asyncio
-async def test_market_state_tracks_last_update_for_single_item_updates() -> None:
-    state = MarketState()
-
-    await state.update_single_funding("hyperliquid", "ETH", _funding("ETH", 8.0))
-    await state.update_single_ticker("hyperliquid", "ETH", _ticker("ETH", "2500"))
-
-    last_update = state.get_last_update("hyperliquid", "ETH")
-
-    assert last_update is not None
-    assert last_update.tzinfo is UTC
-    assert state.get_funding("hyperliquid")["ETH"].apr == 8.0
-    assert state.get_tickers("hyperliquid")["ETH"].mark_price == Decimal("2500")
+def test_poll_cache_is_fresh_after_update() -> None:
+    cache = PollCache()
+    cache.update([_opp("BTC")])
+    assert cache.is_stale(max_age_s=60.0) is False
+    assert cache.last_updated() is not None
 
 
-@pytest.mark.asyncio
-async def test_market_state_is_stale_depends_on_update_age() -> None:
-    state = MarketState()
-
-    assert state.is_stale("hyperliquid", "BTC") is True
-
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC"))
-    assert state.is_stale("hyperliquid", "BTC", max_age_s=30.0) is False
-
-    state._updated_at[StateKey("hyperliquid", "BTC")] = datetime.now(UTC) - timedelta(seconds=31)
-
-    assert state.is_stale("hyperliquid", "BTC", max_age_s=30.0) is True
+def test_poll_cache_returns_copy_of_opportunities() -> None:
+    cache = PollCache()
+    opps = [_opp("BTC")]
+    cache.update(opps)
+    result = cache.get_opportunities()
+    result.clear()
+    assert len(cache.get_opportunities()) == 1
 
 
-@pytest.mark.asyncio
-async def test_market_state_tracks_consecutive_funding_persistence() -> None:
-    state = MarketState(sample_interval_s=3600)
-
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
-    await state.update_single_funding("aster", "BTC", _funding("BTC", 11.0))
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 6.0))
-    await state.update_single_funding("aster", "BTC", _funding("BTC", 12.0))
-
-    persistence_hours = state.get_funding_persistence_hours("hyperliquid", "aster", "BTC")
-
-    assert persistence_hours == 2.0
-
-
-@pytest.mark.asyncio
-async def test_market_state_stops_persistence_on_direction_flip() -> None:
-    state = MarketState(sample_interval_s=3600)
-
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
-    await state.update_single_funding("aster", "BTC", _funding("BTC", 11.0))
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 14.0))
-    await state.update_single_funding("aster", "BTC", _funding("BTC", 12.0))
-
-    persistence_hours = state.get_funding_persistence_hours("hyperliquid", "aster", "BTC")
-
-    assert persistence_hours == 0.0
+def test_poll_cache_update_replaces_previous() -> None:
+    cache = PollCache()
+    cache.update([_opp("BTC"), _opp("ETH")])
+    cache.update([_opp("SOL")])
+    result = cache.get_opportunities()
+    assert len(result) == 1
+    assert result[0].symbol == "SOL"

@@ -1,110 +1,109 @@
 from decimal import Decimal
 
-import pytest
-
 from src.core.config import Settings
-from src.exchanges.aster import AsterConnector
-from src.exchanges.hyperliquid import HyperliquidConnector
-from src.exchanges.schemas import AsterPremiumIndex, AsterTicker24h, HLAssetCtx, HLAssetInfo
+from src.exchanges.vooi import VooiConnector
 
 
-class _FakeResponse:
-    def __init__(self, payload):
-        self._payload = payload
+def _raw_opp(
+    asset: str = "BTC",
+    long_ex: str = "hyperliquid",
+    short_ex: str = "lighter",
+    net_apr: float = 0.75,
+    apr_1h: float = 0.80,
+    apr_24h: float = 0.70,
+    apr_7d: float | None = 0.60,
+    volume: float = 1_000_000.0,
+    long_max_lev: int = 10,
+    short_max_lev: int = 10,
+) -> dict:
+    raw: dict = {
+        "asset": asset,
+        "netApr": net_apr,
+        "apr1h": apr_1h,
+        "apr24h": apr_24h,
+        "grossSpreadHourly": 0.0001,
+        "volume24h": volume,
+        "longMarketData": {
+            "exchange": long_ex,
+            "baseSymbol": asset,
+            "quoteSymbol": "USDC",
+            "fundingRate": "0.0001",
+            "maxLeverage": long_max_lev,
+        },
+        "shortMarketData": {
+            "exchange": short_ex,
+            "baseSymbol": asset,
+            "quoteSymbol": "USDC",
+            "fundingRate": "0.0003",
+            "maxLeverage": short_max_lev,
+        },
+    }
+    if apr_7d is not None:
+        raw["apr7d"] = apr_7d
+    return raw
 
-    def json(self):
-        return self._payload
+
+def _connector() -> VooiConnector:
+    return VooiConnector(Settings(vooi_bearer_token="test-token", vooi_target_exchanges="hyperliquid,lighter"))
 
 
-def test_hyperliquid_parse_rates_and_tickers_skips_missing_fields() -> None:
-    connector = HyperliquidConnector(Settings())
+def test_vooi_connector_parses_opportunity_correctly() -> None:
+    connector = _connector()
+    opp = connector._parse_opportunity(_raw_opp())
 
-    rates, tickers = connector._parse_rates_and_tickers(
-        universe=[
-            HLAssetInfo(name="btc"),
-            HLAssetInfo(name="eth"),
-        ],
-        asset_ctxs=[
-            HLAssetCtx(
-                funding="0.0002",
-                markPx="100",
-                oraclePx="101",
-                dayNtlVlm="12345",
-                openInterest="9876.5",
-            ),
-            HLAssetCtx(
-                funding=None,
-                markPx=None,
-                oraclePx="200",
-                dayNtlVlm="999",
-            ),
-        ],
+    assert opp is not None
+    assert opp.symbol == "BTC"
+    assert opp.long_exchange == "hyperliquid"
+    assert opp.short_exchange == "lighter"
+    assert opp.net_apr == 0.75
+    assert opp.apr_1h == 0.80
+    assert opp.apr_24h == 0.70
+    assert opp.apr_7d == 0.60
+    assert opp.volume_24h_usd == 1_000_000.0
+    assert opp.long_max_leverage == 10
+    assert opp.short_max_leverage == 10
+    assert opp.long_funding_rate == Decimal("0.0001")
+    assert opp.short_funding_rate == Decimal("0.0003")
+
+
+def test_vooi_connector_skips_opportunity_from_wrong_exchange() -> None:
+    connector = _connector()
+    opp = connector._parse_opportunity(_raw_opp(long_ex="aster", short_ex="hyperliquid"))
+    assert opp is None
+
+
+def test_vooi_connector_skips_opportunity_with_one_wrong_exchange() -> None:
+    connector = _connector()
+    opp = connector._parse_opportunity(_raw_opp(long_ex="hyperliquid", short_ex="binance"))
+    assert opp is None
+
+
+def test_vooi_connector_handles_missing_apr7d() -> None:
+    connector = _connector()
+    raw = _raw_opp(apr_7d=None)
+    opp = connector._parse_opportunity(raw)
+    assert opp is not None
+    assert opp.apr_7d is None
+
+
+def test_vooi_connector_handles_missing_asset() -> None:
+    connector = _connector()
+    raw = _raw_opp()
+    raw["asset"] = ""
+    opp = connector._parse_opportunity(raw)
+    assert opp is None
+
+
+def test_vooi_connector_skips_malformed_opportunity() -> None:
+    connector = _connector()
+    opp = connector._parse_opportunity({"asset": "BTC", "netApr": 0.5})
+    assert opp is None
+
+
+def test_vooi_connector_target_exchanges_from_settings() -> None:
+    connector = VooiConnector(
+        Settings(vooi_bearer_token="tok", vooi_target_exchanges="hyperliquid,lighter,aster")
     )
-
-    assert list(rates) == ["BTC"]
-    assert list(tickers) == ["BTC"]
-    assert rates["BTC"].rate == Decimal("0.0002")
-    assert rates["BTC"].apr == 175.2
-    assert tickers["BTC"].mark_price == Decimal("100")
-    assert tickers["BTC"].index_price == Decimal("101")
-    assert tickers["BTC"].volume_24h == 12345.0
-    assert tickers["BTC"].open_interest == 9876.5
-
-
-@pytest.mark.asyncio
-async def test_aster_get_funding_rates_normalizes_symbols_and_skips_missing_rates(monkeypatch) -> None:
-    connector = AsterConnector(Settings())
-
-    async def fake_get(path: str):
-        assert path == "/fapi/v1/premiumIndex"
-        return _FakeResponse(
-            [
-                AsterPremiumIndex(symbol="btcusdt", lastFundingRate="0.0001", markPrice="100").model_dump(mode="json"),
-                AsterPremiumIndex(symbol="ETHUSDT", lastFundingRate=None, markPrice="200").model_dump(mode="json"),
-            ]
-        )
-
-    monkeypatch.setattr(connector._client, "get", fake_get)
-
-    rates = await connector.get_funding_rates()
-
-    assert list(rates) == ["BTC"]
-    assert rates["BTC"].rate == Decimal("0.0001")
-    assert rates["BTC"].period_hours == 8
-    assert rates["BTC"].apr == 10.95
-
-
-@pytest.mark.asyncio
-async def test_aster_get_tickers_uses_last_price_fallback_and_normalizes_symbols(monkeypatch) -> None:
-    connector = AsterConnector(Settings())
-
-    async def fake_get(path: str):
-        assert path == "/fapi/v1/ticker/24hr"
-        return _FakeResponse(
-            [
-                AsterTicker24h(
-                    symbol="btcusdt",
-                    markPrice=None,
-                    lastPrice="64000",
-                    indexPrice="63950",
-                    quoteVolume="2500000",
-                ).model_dump(mode="json"),
-                AsterTicker24h(
-                    symbol="ethusdt",
-                    markPrice=None,
-                    lastPrice=None,
-                    indexPrice="3500",
-                    quoteVolume="500000",
-                ).model_dump(mode="json"),
-            ]
-        )
-
-    monkeypatch.setattr(connector._client, "get", fake_get)
-
-    tickers = await connector.get_tickers()
-
-    assert list(tickers) == ["BTC"]
-    assert tickers["BTC"].mark_price == Decimal("64000")
-    assert tickers["BTC"].index_price == Decimal("63950")
-    assert tickers["BTC"].volume_24h == 2500000.0
-    assert tickers["BTC"].open_interest is None
+    opp = connector._parse_opportunity(_raw_opp(long_ex="aster", short_ex="hyperliquid"))
+    assert opp is not None
+    assert opp.long_exchange == "aster"

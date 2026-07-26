@@ -2,22 +2,19 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Screener
-    min_score_bps: float = 5.0
+    # Screener filters
+    min_net_apr: float = 0.05
     min_volume_24h: float = 100_000.0
-    min_persistence_hours: float = 0.0
-    hl_fee_per_side: float = 0.035
-    aster_fee_per_side: float = 0.05
-    expected_hold_hours: float = 72.0
-    basis_weight: float = 0.5
+    max_apr_ratio_1h_24h: float = 0.0
+    max_apr_ratio_24h_7d: float = 0.0
     loop_interval_s: int = 10
     stale_data_s: float = 30.0
 
-    # Exchanges
-    hl_base_url: str = "https://api.hyperliquid.xyz"
-    hl_ws_url: str = "wss://api.hyperliquid.xyz/ws"
-    aster_base_url: str = "https://fapi.asterdex.com"
-    aster_ws_url: str = "wss://fstream.asterdex.com/ws"
+    # VOOI Perps API
+    vooi_api_url: str = "https://perps-api.vooi.io"
+    vooi_bearer_token: str = ""
+    vooi_target_exchanges: str = "hyperliquid,lighter"
+    vooi_opportunity_limit: int = 100
 
     # Resilience
     http_timeout: float = 10.0

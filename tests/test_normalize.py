@@ -1,21 +1,13 @@
-from decimal import Decimal
-
-from src.core.normalize import (
-    aster_symbol_to_normalized,
-    hl_symbol_to_normalized,
-    normalized_to_aster,
-    rate_to_apr,
-)
+from src.core.normalize import vooi_symbol_normalized
 
 
-def test_rate_to_apr_converts_periodic_rate_to_annual_percentage() -> None:
-    apr = rate_to_apr(Decimal("0.0001"), period_hours=8)
+def test_vooi_symbol_normalized_uppercases_symbol() -> None:
+    assert vooi_symbol_normalized("btc") == "BTC"
+    assert vooi_symbol_normalized("ETH") == "ETH"
+    assert vooi_symbol_normalized("sol") == "SOL"
 
-    assert apr == 10.95
 
-
-def test_symbol_normalizers_round_trip_between_exchange_formats() -> None:
-    assert hl_symbol_to_normalized("btc") == "BTC"
-    assert aster_symbol_to_normalized("ethusdt") == "ETH"
-    assert aster_symbol_to_normalized("ANSEM") == "ANSEM"
-    assert normalized_to_aster("BTC") == "BTCUSDT"
+def test_vooi_symbol_normalized_handles_prefixed_symbols() -> None:
+    # HIP-3 non-crypto symbols pass through as-is (uppercased)
+    assert vooi_symbol_normalized("xyz:MU") == "XYZ:MU"
+    assert vooi_symbol_normalized("alias:YZY") == "ALIAS:YZY"

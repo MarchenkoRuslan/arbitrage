@@ -14,8 +14,9 @@ class ResilientClient:
         timeout: float = 10.0,
         max_retries: int = 3,
         backoff_base: float = 0.5,
+        headers: dict[str, str] | None = None,
     ) -> None:
-        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
+        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout, headers=headers or {})
         self._max_retries = max_retries
         self._backoff_base = backoff_base
 

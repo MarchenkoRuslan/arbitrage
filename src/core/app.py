@@ -3,11 +3,10 @@ import asyncio
 from loguru import logger
 
 from src.core.config import Settings
-from src.core.state import MarketState
-from src.exchanges.aster import AsterConnector
-from src.exchanges.hyperliquid import HyperliquidConnector
+from src.core.state import PollCache
+from src.exchanges.vooi import VooiConnector
 from src.output.console import print_opportunities
-from src.screener.finder import find_opportunities_from_state
+from src.screener.finder import filter_opportunities
 
 
 class App:
@@ -15,50 +14,34 @@ class App:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or Settings()
-        self.state = MarketState(sample_interval_s=self.settings.loop_interval_s)
-        self.hl = HyperliquidConnector(self.settings)
-        self.aster = AsterConnector(self.settings)
+        self.cache = PollCache()
+        self.vooi = VooiConnector(self.settings)
 
     async def poll_once(self) -> None:
-        """Single poll cycle: fetch data, update state, run screener."""
-        hl_data, aster_rates, aster_tickers = await asyncio.gather(
-            self.hl.get_market_data(),
-            self.aster.get_funding_rates(),
-            self.aster.get_tickers(),
-        )
-        hl_rates, hl_tickers = hl_data
+        """Single poll cycle: fetch opportunities from VOOI, filter, and display."""
+        raw_opps = await self.vooi.get_opportunities()
+        self.cache.update(raw_opps)
 
-        # Update shared state
-        await asyncio.gather(
-            self.state.update_funding("hyperliquid", hl_rates),
-            self.state.update_tickers("hyperliquid", hl_tickers),
-            self.state.update_funding("aster", aster_rates),
-            self.state.update_tickers("aster", aster_tickers),
-        )
+        logger.info("Fetched {} raw opportunities from VOOI", len(raw_opps))
 
-        logger.info(
-            "State updated: HL={} Aster={} | Common={}",
-            len(hl_rates),
-            len(aster_rates),
-            len(set(hl_rates) & set(aster_rates)),
-        )
-
-        # Run screener from state (zero I/O hot path)
-        opps = find_opportunities_from_state(self.state, self.settings)
+        opps = filter_opportunities(raw_opps, self.settings)
         print_opportunities(opps)
 
         if not opps:
-            logger.info("No opportunities above {:.1f} bps edge threshold", self.settings.min_score_bps)
+            logger.info(
+                "No opportunities above {:.1%} net APR with vol >= {:.0f}",
+                self.settings.min_net_apr,
+                self.settings.min_volume_24h,
+            )
 
     async def run_loop(self) -> None:
         """Continuous polling loop."""
         logger.info(
-            "Starting screener (interval={}s, hold={}h, min_edge={}bps, min_volume={}, min_persist={}h)",
+            "Starting DEX screener (interval={}s, min_net_apr={:.1%}, min_vol={:.0f}, exchanges={})",
             self.settings.loop_interval_s,
-            self.settings.expected_hold_hours,
-            self.settings.min_score_bps,
+            self.settings.min_net_apr,
             self.settings.min_volume_24h,
-            self.settings.min_persistence_hours,
+            self.settings.vooi_target_exchanges,
         )
         try:
             while True:
@@ -80,8 +63,4 @@ class App:
     async def shutdown(self) -> None:
         """Graceful shutdown — close all connections."""
         logger.debug("Shutting down...")
-        await asyncio.gather(
-            self.hl.close(),
-            self.aster.close(),
-            return_exceptions=True,
-        )
+        await self.vooi.close()
