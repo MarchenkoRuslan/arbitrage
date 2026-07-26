@@ -1,63 +1,87 @@
 # Exchanges and APIs
 
-## Focus: DEX-first
+## Active Venues
 
-The strategy starts with DEX venues (Hyperliquid, Aster) because they offer the lowest fees, 1h funding, and no KYC.
-CEX venues are added later as additional options.
+| Exchange | Type | Funding Period | Fee | Auth | Status |
+|---|---|---|---|---|---|
+| Hyperliquid | DEX (Layer 1) | 1h | 0.035% taker | None | ✅ Active |
+| Lighter | DEX (ZK Rollup / ETH) | 1h (approximated) | 0% | None | ✅ Active |
 
-## Target Exchanges (v1 - DEX only)
+Both APIs are public REST — no API keys, no KYC, no registration required.
 
-| Exchange | Funding Period | Type | Priority | Status |
-|-------|---------------|-----|-----------|--------|
-| Hyperliquid | 1h | DEX | **P0** | Primary |
-| Aster | 8h | DEX/CEX | **P0** | Second leg |
+---
 
-## Expansion (v2+)
+## Hyperliquid
 
-| Exchange | Funding Period | Type | Priority |
-|-------|---------------|-----|-----------|
-| Lighter | varies | DEX | P1 |
-| dYdX v4 | 1h | DEX | P2 |
-| Bybit | 8h | CEX | P2 |
-| Binance | 8h | CEX | P3 |
-
-## Key Endpoints
-
-### Hyperliquid (details: [docs/api/hyperliquid.md](api/hyperliquid.md))
 ```
-POST /info {"type": "metaAndAssetCtxs"}    # Funding rates + market info  
-POST /info {"type": "allMids"}             # All mid prices
-POST /info {"type": "l2Book", "coin": X}   # Order book
-POST /info {"type": "clearinghouseState"}  # Positions + balance
-POST /exchange {"action": {"type": "order"}}  # Trading (signed)
-WS: allMids, l2Book, userFills, userFundings
+Base URL: https://api.hyperliquid.xyz
+
+POST /info {"type": "metaAndAssetCtxs"}
+  → [{"universe": [{"name": "BTC", ...}]}, [{"funding": "0.0001", "markPx": "64000", ...}]]
+  Returns: funding rate + mark/oracle price + volume + OI for all markets in one call
+
+Funding period: 1h
+Symbol format: bare coin name (BTC, ETH, SOL...)
+Markets: ~232 perps
 ```
 
-### Aster (details: [docs/api/aster.md](api/aster.md))
+APR conversion: `rate × 8760 × 100`
+
+---
+
+## Lighter
+
 ```
-Base URL: https://fapi.asterdex.com
-Auth: V3 (EIP-712, recommended) or V1 (HMAC, legacy)
-Interface: Binance-compatible (BTCUSDT symbols, standard params)
+Base URL: https://mainnet.zklighter.elliot.ai
 
-GET /fapi/v1/premiumIndex         # Funding rate + mark price
-GET /fapi/v1/fundingRate          # Funding history
-POST /fapi/v1/order               # Order
-WS: <symbol>@bookTicker, mini_ticker
-```
+GET /api/v1/orderBookDetails?filter=perp
+  → {"order_book_details": [{"symbol": "ETH", "market_type": "perp", "status": "active",
+                               "mark_price": "1893.79", "index_price": "1894.65",
+                               "daily_quote_token_volume": 203656594, ...}]}
+  Returns: all perp markets with mark/index price and 24h volume in one call
 
-## Normalization
-
-### Periods -> APR
-```python
-def normalize_to_annual(rate: Decimal, period_hours: int) -> Decimal:
-    periods_per_year = Decimal(8760) / Decimal(period_hours)
-    return rate * periods_per_year * Decimal(100)
-
-# Hyperliquid: 0.003% for 1h -> 26.28% APR
-# Aster: 0.01% for 8h -> 10.95% APR
+Funding period: 1h (payments every hour)
+Funding rate approximation: (mark_price - index_price) / index_price / 8
+Symbol format: bare coin name (ETH, BTC, SOL...)
+Markets: ~219 active perps
+Trading fee: 0% (zero-fee DEX)
 ```
 
-### Symbols
+Lighter’s funding formula per their docs:
+```
+premium_t = (ImpactBidPrice - index) or (index - ImpactAskPrice) / index
+hourly_premium = average(premium_t) × FundingPremiumMultiplier
+fundingRate = clamp(smallClampedPremium, -4%, +4%) / 8
+```
+
+The screener uses the simplified approximation `(mark - index) / index / 8`, which
+closely tracks the actual rate for liquid markets and is sufficient for screening.
+
+---
+
+## Symbol Normalization
+
+Both exchanges use bare coin names (BTC, ETH, SOL). No transformation needed —
+`hl_symbol_to_normalized` and `lighter_symbol_to_normalized` both return `symbol.upper()`.
+
+---
+
+## Fee Model
+
+```
+Roundtrip cost = (hl_fee_per_side + lighter_fee_per_side) × 2 × 100 bps
+              = (0.035% + 0.0%) × 2 × 100
+              = 7 bps
+```
+
+Lighter charges zero trading fees, so the entire friction is Hyperliquid’s taker fee.
+
+---
+
+## Common Markets (as of 2026-07)
+
+~92 symbols traded on both exchanges, including: BTC, ETH, SOL, AVAX, SUI, DOGE,
+LINK, AAVE, WLD, ENA, TAO, NEAR, ADA, XMR, HYPE, TRUMP, KAITO, JUP, and more.
 ```python
 # Hyperliquid: coin name only ("BTC", "ETH", "ANSEM")
 # Aster: Binance-style ("BTCUSDT", "ETHUSDT", "ANSEMUSDT")

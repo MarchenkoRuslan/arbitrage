@@ -7,7 +7,6 @@
 | Language | Python 3.12+ | Ecosystem and fast development |
 | Async | asyncio | Parallel IO workloads |
 | HTTP | httpx | Async REST requests |
-| WS | websockets | Streaming real-time updates |
 | Types | Pydantic | Validation and schemas |
 | Settings | pydantic-settings | Env-based configuration |
 | Logging | loguru | Structured logging |
@@ -22,42 +21,44 @@
 | Package | pyproject + editable install | Simple development workflow |
 | Tests | pytest + pytest-asyncio | Validation for async logic |
 
-## Why Start This Lean
-
-- The first requirement is a working and testable screener, not a full trading platform
-- The minimal architecture already leaves room for scaling: state cache, DI, protocols, WS modules
-- The cold path can perform IO while the hot screener path runs from in-memory data
-
 ## Code Structure
 
 ```
 src/
 ├── core/
 │   ├── app.py             # Application orchestrator
-│   ├── config.py          # Environment configuration
+│   ├── config.py          # Environment configuration (ARB_ prefix)
 │   ├── http.py            # Retry/backoff HTTP client
-│   ├── models.py          # Pydantic models
-│   ├── normalize.py       # APR and symbol normalization
-│   └── state.py           # Shared market state cache
+│   ├── models.py          # FundingRate, Ticker, ArbitrageOpportunity
+│   ├── normalize.py       # APR conversion, symbol normalization
+│   └── state.py           # MarketState in-memory cache
 ├── exchanges/
-│   ├── base.py            # Connector protocol
-│   ├── schemas.py         # API response schemas
-│   ├── hyperliquid.py     # REST connector
-│   ├── hyperliquid_ws.py  # WS feed (prepared)
-│   ├── aster.py           # REST connector
-│   └── aster_ws.py        # WS feed (prepared)
+│   ├── hyperliquid.py     # Hyperliquid REST connector
+│   ├── lighter.py         # Lighter REST connector
+│   └── schemas.py         # Pydantic schemas for raw API responses
 ├── output/
-│   └── console.py         # Tabular console output
+│   └── console.py         # Tabular stdout output
 ├── screener/
 │   └── finder.py          # Opportunity search and scoring
 └── main.py
 ```
 
-## Current Dependencies
+## Dependencies
 
-- `httpx`
-- `pydantic`
-- `pydantic-settings`
+```toml
+[dependencies]
+httpx          # async HTTP with retry
+pydantic       # data validation
+pydantic-settings  # env-driven config
+loguru         # structured logging
+
+[dev]
+pytest
+pytest-asyncio
+ruff
+```
+
+No websockets library — both exchanges are polled via REST only. WebSocket ingestion is planned but not implemented.
 - `loguru`
 - `websockets`
 

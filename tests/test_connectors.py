@@ -1,109 +1,60 @@
 from decimal import Decimal
 
+import pytest
+
 from src.core.config import Settings
-from src.exchanges.vooi import VooiConnector
+from src.exchanges.hyperliquid import HyperliquidConnector
+from src.exchanges.schemas import HLAssetCtx, HLAssetInfo, LighterOrderBook
 
 
-def _raw_opp(
-    asset: str = "BTC",
-    long_ex: str = "hyperliquid",
-    short_ex: str = "lighter",
-    net_apr: float = 0.75,
-    apr_1h: float = 0.80,
-    apr_24h: float = 0.70,
-    apr_7d: float | None = 0.60,
-    volume: float = 1_000_000.0,
-    long_max_lev: int = 10,
-    short_max_lev: int = 10,
-) -> dict:
-    raw: dict = {
-        "asset": asset,
-        "netApr": net_apr,
-        "apr1h": apr_1h,
-        "apr24h": apr_24h,
-        "grossSpreadHourly": 0.0001,
-        "volume24h": volume,
-        "longMarketData": {
-            "exchange": long_ex,
-            "baseSymbol": asset,
-            "quoteSymbol": "USDC",
-            "fundingRate": "0.0001",
-            "maxLeverage": long_max_lev,
-        },
-        "shortMarketData": {
-            "exchange": short_ex,
-            "baseSymbol": asset,
-            "quoteSymbol": "USDC",
-            "fundingRate": "0.0003",
-            "maxLeverage": short_max_lev,
-        },
-    }
-    if apr_7d is not None:
-        raw["apr7d"] = apr_7d
-    return raw
-
-
-def _connector() -> VooiConnector:
-    return VooiConnector(Settings(vooi_bearer_token="test-token", vooi_target_exchanges="hyperliquid,lighter"))
-
-
-def test_vooi_connector_parses_opportunity_correctly() -> None:
-    connector = _connector()
-    opp = connector._parse_opportunity(_raw_opp())
-
-    assert opp is not None
-    assert opp.symbol == "BTC"
-    assert opp.long_exchange == "hyperliquid"
-    assert opp.short_exchange == "lighter"
-    assert opp.net_apr == 0.75
-    assert opp.apr_1h == 0.80
-    assert opp.apr_24h == 0.70
-    assert opp.apr_7d == 0.60
-    assert opp.volume_24h_usd == 1_000_000.0
-    assert opp.long_max_leverage == 10
-    assert opp.short_max_leverage == 10
-    assert opp.long_funding_rate == Decimal("0.0001")
-    assert opp.short_funding_rate == Decimal("0.0003")
-
-
-def test_vooi_connector_skips_opportunity_from_wrong_exchange() -> None:
-    connector = _connector()
-    opp = connector._parse_opportunity(_raw_opp(long_ex="aster", short_ex="hyperliquid"))
-    assert opp is None
-
-
-def test_vooi_connector_skips_opportunity_with_one_wrong_exchange() -> None:
-    connector = _connector()
-    opp = connector._parse_opportunity(_raw_opp(long_ex="hyperliquid", short_ex="binance"))
-    assert opp is None
-
-
-def test_vooi_connector_handles_missing_apr7d() -> None:
-    connector = _connector()
-    raw = _raw_opp(apr_7d=None)
-    opp = connector._parse_opportunity(raw)
-    assert opp is not None
-    assert opp.apr_7d is None
-
-
-def test_vooi_connector_handles_missing_asset() -> None:
-    connector = _connector()
-    raw = _raw_opp()
-    raw["asset"] = ""
-    opp = connector._parse_opportunity(raw)
-    assert opp is None
-
-
-def test_vooi_connector_skips_malformed_opportunity() -> None:
-    connector = _connector()
-    opp = connector._parse_opportunity({"asset": "BTC", "netApr": 0.5})
-    assert opp is None
-
-
-def test_vooi_connector_target_exchanges_from_settings() -> None:
-    connector = VooiConnector(
-        Settings(vooi_bearer_token="tok", vooi_target_exchanges="hyperliquid,lighter,aster")
+def test_hyperliquid_parse_rates_and_tickers_skips_missing_fields() -> None:
+    connector = HyperliquidConnector(Settings())
+    rates, tickers = connector._parse_rates_and_tickers(
+        universe=[HLAssetInfo(name="btc"), HLAssetInfo(name="eth")],
+        asset_ctxs=[
+            HLAssetCtx(funding="0.0002", markPx="100", oraclePx="101",
+                       dayNtlVlm="12345", openInterest="9876.5"),
+            HLAssetCtx(funding=None, markPx=None, oraclePx="200", dayNtlVlm="999"),
+        ],
     )
-    opp = connector._parse_opportunity(_raw_opp(long_ex="aster", short_ex="hyperliquid"))
-    assert opp is not None
-    assert opp.long_exchange == "aster"
+    assert list(rates) == ["BTC"]
+    assert list(tickers) == ["BTC"]
+    assert rates["BTC"].rate == Decimal("0.0002")
+    assert rates["BTC"].period_hours == 1
+    assert tickers["BTC"].mark_price == Decimal("100")
+    assert tickers["BTC"].index_price == Decimal("101")
+    assert tickers["BTC"].volume_24h == 12345.0
+
+
+def test_lighter_connector_computes_funding_rate_from_mark_index() -> None:
+    raw = {
+        "symbol": "ETH", "market_id": 0, "market_type": "perp", "status": "active",
+        "mark_price": "2000.0", "index_price": "1992.0",
+        "daily_quote_token_volume": 5_000_000.0, "open_interest": 1000.0,
+    }
+    book = LighterOrderBook(**raw)
+    mark = Decimal(book.mark_price)
+    index = Decimal(book.index_price)
+    rate = (mark - index) / index / 8
+    assert float(rate) == pytest.approx(0.000502, rel=1e-3)
+
+
+def test_lighter_connector_skips_inactive_markets() -> None:
+    # LighterOrderBook with status != "active" should be skipped by connector
+    raw = {
+        "symbol": "OLD", "market_id": 99, "market_type": "perp", "status": "closed",
+        "mark_price": "100.0", "index_price": "100.0",
+        "daily_quote_token_volume": 0.0,
+    }
+    book = LighterOrderBook(**raw)
+    assert book.status != "active"
+
+
+def test_lighter_connector_skips_spot_markets() -> None:
+    raw = {
+        "symbol": "USDC", "market_id": 1, "market_type": "spot", "status": "active",
+        "mark_price": "1.0", "index_price": "1.0",
+        "daily_quote_token_volume": 1_000_000.0,
+    }
+    book = LighterOrderBook(**raw)
+    assert book.market_type != "perp"

@@ -2,14 +2,14 @@
 
 ## Scope
 
-This repository is a Python 3.12+ funding rate arbitrage screener focused on Hyperliquid and Aster.
+This repository is a Python 3.12+ funding rate arbitrage screener for two pure DEX venues: **Hyperliquid** and **Lighter**.
 
 The current implementation is a read-only screener. Trading, risk automation, and alerting are planned but not part of the active runtime yet.
 
 ## Project Map
 
 - `src/core/` contains application orchestration, config, HTTP utilities, shared models, normalization, and state.
-- `src/exchanges/` contains venue-specific connectors and schemas.
+- `src/exchanges/` contains venue-specific connectors (`hyperliquid.py`, `lighter.py`) and shared schemas (`schemas.py`).
 - `src/screener/` contains opportunity selection and ranking logic.
 - `src/output/` contains console rendering.
 - `docs/` contains architecture, strategy, risk, API, and roadmap notes.
@@ -24,6 +24,7 @@ The current implementation is a read-only screener. Trading, risk automation, an
 - Keep the screener path read-only unless the task explicitly involves order placement or account actions.
 - Reuse the existing connector and normalization patterns instead of introducing exchange-specific shortcuts in unrelated layers.
 - Keep environment-driven configuration in `src/core/config.py` rather than scattering constants across modules.
+- No VOOI dependency: both exchanges are accessed via their own public REST APIs, no authentication required.
 
 ## Implementation Expectations
 
@@ -32,6 +33,7 @@ The current implementation is a read-only screener. Trading, risk automation, an
 - Keep `src/core/app.py` as the orchestration boundary, not a dumping ground for venue-specific logic.
 - Maintain the current project style: straightforward asyncio, small modules, and explicit data flow.
 - Avoid speculative abstractions unless at least two concrete call sites need them.
+- Lighter funding rate is approximated from `(mark_price - index_price) / index_price / 8` — do not change this without updating the relevant doc and tests.
 
 ## Validation
 

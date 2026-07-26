@@ -21,32 +21,43 @@ Total_Profit = Basis_Convergence + Funding_Income - Fees
 ```python
 score_bps = funding_edge_bps - roundtrip_fees_bps + basis_bonus_bps
 
-basis_bonus_bps = max(0, directional_basis_bps) * 0.5
-funding_edge_bps = funding_diff_apr * (expected_hold_hours / 8760) * 100
+basis_bonus_bps   = max(0, directional_basis_bps) * 0.5
+funding_edge_bps  = funding_diff_apr * (expected_hold_hours / 8760) * 100
+roundtrip_fees_bps = (hl_fee_per_side + lighter_fee_per_side) * 2 * 100
+                   = (0.035 + 0.0) * 2 * 100 = 7 bps
 ```
 
+Lighter charges zero trading fees — the full roundtrip cost is 7 bps (HL taker only).
 Directional basis is positive only when the short leg is richer than the long leg.
 
-If basis is negative, check how many funding hours are needed to cover it:
+If basis is negative, check whether funding can cover it within the hold window:
 ```python
 hours_to_cover = abs(negative_basis_bps) / hourly_funding_bps
-if hours_to_cover > max_holding_hours: SKIP
+if hours_to_cover > expected_hold_hours: SKIP
 ```
 
-## Real Examples
+## Example (Hyperliquid + Lighter)
 
-### UMA - ideal case
+### AERO — ideal case (2026-07-26)
 ```
-Long Hyperliquid @ $0.3901, Short Aster @ $0.3932
-Basis: +80.5 bps, APR: 67%, Fees: ~21 bps
-Day 1: basis convergence +59.5 bps + funding 18.4 bps = +78 bps
+Long  Lighter    @ basis side
+Short Hyperliquid @ basis side
+Diff APR: 177.75%
+Funding edge (72h hold): 146.09 bps
+Basis bonus: +8.71 bps * 0.5 = +4.36 bps
+Fees: 7 bps
+Score: 143.45 bps
+Breakeven: 3.5h
 ```
 
-### CASHCAT - funding insurance
+### XMR — funding insurance
 ```
-Basis: -54.9 bps (against us), APR: 145%
-Funding: 39.7 bps/day -> breakeven in 1.4 days
-Day 3: +119.1 - 54.9 - 21 = +43.2 bps
+Long  Lighter    @ basis side
+Short Hyperliquid @ basis side
+Diff APR: 122.96%
+Basis: -5.25 bps (against us)
+Hourly funding: ~1.40 bps → breakeven in 3.75h — well within 72h hold
+Score: 94.06 bps
 ```
 
 ## Exit Signals
