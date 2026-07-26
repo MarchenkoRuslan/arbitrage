@@ -22,21 +22,45 @@ class App:
 
     async def poll_once(self) -> None:
         """Single poll cycle: fetch from both DEXes, update state, run screener."""
-        hl_rates_tickers, lighter_rates_tickers = await asyncio.gather(
+        results = await asyncio.gather(
             self.hl.get_market_data(),
             self.lighter.get_market_data(),
-        )
-        hl_rates, hl_tickers = hl_rates_tickers
-        lighter_rates, lighter_tickers = lighter_rates_tickers
-
-        await asyncio.gather(
-            self.state.update_funding("hyperliquid", hl_rates),
-            self.state.update_tickers("hyperliquid", hl_tickers),
-            self.state.update_funding("lighter", lighter_rates),
-            self.state.update_tickers("lighter", lighter_tickers),
+            return_exceptions=True,
         )
 
+        hl_rates: dict = {}
+        hl_tickers: dict = {}
+        lighter_rates: dict = {}
+        lighter_tickers: dict = {}
+
+        if isinstance(results[0], Exception):
+            logger.warning("Hyperliquid fetch failed: {}", results[0])
+        else:
+            hl_rates, hl_tickers = results[0]
+
+        if isinstance(results[1], Exception):
+            logger.warning("Lighter fetch failed: {}", results[1])
+        else:
+            lighter_rates, lighter_tickers = results[1]
+
+        if not hl_rates and not lighter_rates:
+            logger.error("Both exchanges failed, skipping poll cycle")
+            return
+
+        update_tasks = []
+        if hl_rates:
+            update_tasks.append(self.state.update_funding("hyperliquid", hl_rates))
+            update_tasks.append(self.state.update_tickers("hyperliquid", hl_tickers))
+        if lighter_rates:
+            update_tasks.append(self.state.update_funding("lighter", lighter_rates))
+            update_tasks.append(self.state.update_tickers("lighter", lighter_tickers))
+        await asyncio.gather(*update_tasks)
+
+        # Record paired snapshots only for symbols where both exchanges have data
         common = set(hl_rates) & set(lighter_rates)
+        for symbol in common:
+            self.state.record_snapshot(symbol, hl_rates[symbol], lighter_rates[symbol])
+
         logger.info(
             "State updated: HL={} Lighter={} | Common={}",
             len(hl_rates), len(lighter_rates), len(common),

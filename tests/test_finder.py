@@ -243,6 +243,7 @@ async def test_find_opportunities_from_state_reads_cached_market_data() -> None:
     await state.update_funding("lighter", {"BTC": _funding("BTC", 11.0)})
     await state.update_tickers("hyperliquid", {"BTC": _ticker("BTC", "100")})
     await state.update_tickers("lighter", {"BTC": _ticker("BTC", "100")})
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
 
     opportunities = find_opportunities_from_state(state, settings)
 
@@ -298,11 +299,15 @@ async def test_find_opportunities_from_state_applies_persistence_gate() -> None:
     await state.update_funding("lighter", {"BTC": _funding("BTC", 11.0)})
     await state.update_tickers("hyperliquid", {"BTC": _ticker("BTC", "100")})
     await state.update_tickers("lighter", {"BTC": _ticker("BTC", "100")})
+    # Only one snapshot — persistence = 1h, below 2h gate
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
 
     assert find_opportunities_from_state(state, settings) == []
 
+    # Second snapshot — persistence = 2h, meets gate
     await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
     await state.update_funding("lighter", {"BTC": _funding("BTC", 11.0)})
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
 
     opportunities = find_opportunities_from_state(state, settings)
 

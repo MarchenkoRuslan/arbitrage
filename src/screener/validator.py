@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from src.core.config import Settings
 from src.core.models import ArbitrageOpportunity, ValidatedOpportunity
 from src.core.state import MarketState
@@ -25,9 +27,11 @@ def validate_opportunities(
             reasons.append(f"break-even {opp.min_profitable_hours:.1f}h > hold window {settings.expected_hold_hours:.0f}h")
 
         # 3. Funding sign stability (check if direction flipped recently)
-        flip_samples = _recent_flip_count(state, opp, lookback_samples=6)
-        if flip_samples > 0:
-            reasons.append(f"funding direction flipped {flip_samples}x in last {6 * settings.loop_interval_s / 3600:.1f}h")
+        flip_count = state.get_recent_flip_count(
+            opp.long_exchange, opp.short_exchange, opp.symbol, lookback_samples=6
+        )
+        if flip_count > 0:
+            reasons.append(f"funding direction flipped {flip_count}x in last {6 * settings.loop_interval_s / 3600:.1f}h")
 
         # 4. Data freshness (double-check from validator perspective)
         if state.is_stale("hyperliquid", opp.symbol, max_age_s=settings.stale_data_s):
@@ -39,7 +43,6 @@ def validate_opportunities(
         if not reasons:
             last_signal = state.get_last_signal(opp.symbol)
             if last_signal is not None:
-                from datetime import datetime, timezone
                 last_ts, last_score = last_signal
                 age_s = datetime.now(timezone.utc).timestamp() - last_ts
                 if age_s < settings.anti_churn_cooldown_s:
@@ -51,7 +54,15 @@ def validate_opportunities(
             status = "blocked" if any("break-even" in r or "stale" in r for r in reasons) else "watching"
         else:
             status = "ready"
-            state.record_signal(opp.symbol, opp.combined_score)
+            # Only record signal on first transition; don't re-record on subsequent polls
+            last_signal = state.get_last_signal(opp.symbol)
+            if last_signal is None:
+                state.record_signal(opp.symbol, opp.combined_score)
+            else:
+                last_ts, _ = last_signal
+                age_s = datetime.now(timezone.utc).timestamp() - last_ts
+                if age_s >= settings.anti_churn_cooldown_s:
+                    state.record_signal(opp.symbol, opp.combined_score)
 
         results.append(ValidatedOpportunity(opportunity=opp, status=status, reasons=reasons))
 
@@ -59,27 +70,3 @@ def validate_opportunities(
     status_order = {"ready": 0, "watching": 1, "blocked": 2}
     results.sort(key=lambda v: (status_order[v.status], -v.opportunity.combined_score))
     return results
-
-
-def _recent_flip_count(state: MarketState, opp: ArbitrageOpportunity, lookback_samples: int) -> int:
-    """Count how many times the funding direction flipped in the last N samples."""
-    from src.core.state import StateKey
-
-    long_hist = state._funding_history.get(StateKey(opp.long_exchange, opp.symbol))
-    short_hist = state._funding_history.get(StateKey(opp.short_exchange, opp.symbol))
-
-    if not long_hist or not short_hist:
-        return 0
-
-    recent_long = list(long_hist)[-lookback_samples:]
-    recent_short = list(short_hist)[-lookback_samples:]
-
-    flips = 0
-    prev_favorable = None
-    for lr, sr in zip(recent_long, recent_short):
-        favorable = sr.apr > lr.apr
-        if prev_favorable is not None and favorable != prev_favorable:
-            flips += 1
-        prev_favorable = favorable
-
-    return flips

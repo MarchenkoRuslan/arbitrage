@@ -11,12 +11,20 @@ class StateKey(NamedTuple):
     symbol: str
 
 
+class FundingSnapshot(NamedTuple):
+    """A paired observation of funding rates from both exchanges in one poll cycle."""
+    timestamp: datetime
+    hl_rate: FundingRate | None
+    lighter_rate: FundingRate | None
+
+
 class MarketState:
     """In-memory market data cache. Updated by ingestion feeds, read by screener."""
 
     def __init__(self, sample_interval_s: float = 10.0, funding_history_limit: int = 4096) -> None:
         self._funding: dict[StateKey, FundingRate] = {}
         self._funding_history: dict[StateKey, deque[FundingRate]] = {}
+        self._snapshots: dict[str, deque[FundingSnapshot]] = {}
         self._tickers: dict[StateKey, Ticker] = {}
         self._updated_at: dict[StateKey, datetime] = {}
         self._signaled: dict[str, tuple[float, float]] = {}  # symbol -> (timestamp, score)
@@ -58,6 +66,22 @@ class MarketState:
             self._tickers[key] = ticker
             self._updated_at[key] = datetime.now(timezone.utc)
 
+    def record_snapshot(
+        self,
+        symbol: str,
+        hl_rate: FundingRate | None,
+        lighter_rate: FundingRate | None,
+    ) -> None:
+        """Record a paired funding observation from a single poll cycle."""
+        snap = FundingSnapshot(
+            timestamp=datetime.now(timezone.utc),
+            hl_rate=hl_rate,
+            lighter_rate=lighter_rate,
+        )
+        self._snapshots.setdefault(
+            symbol, deque(maxlen=self._funding_history_limit)
+        ).append(snap)
+
     def get_funding(self, exchange: str) -> dict[str, FundingRate]:
         return {
             key.symbol: rate
@@ -82,18 +106,57 @@ class MarketState:
         return (datetime.now(timezone.utc) - updated).total_seconds() > max_age_s
 
     def get_funding_persistence_hours(self, long_exchange: str, short_exchange: str, symbol: str) -> float:
-        long_history = self._funding_history.get(StateKey(long_exchange, symbol))
-        short_history = self._funding_history.get(StateKey(short_exchange, symbol))
-        if not long_history or not short_history:
+        """Count consecutive recent snapshots where short_exchange rate > long_exchange rate."""
+        history = self._snapshots.get(symbol)
+        if not history:
             return 0.0
 
         consecutive_samples = 0
-        for long_rate, short_rate in zip(reversed(long_history), reversed(short_history)):
+        for snap in reversed(history):
+            long_rate = self._snap_rate_for(snap, long_exchange)
+            short_rate = self._snap_rate_for(snap, short_exchange)
+            if long_rate is None or short_rate is None:
+                break
             if short_rate.apr <= long_rate.apr:
                 break
             consecutive_samples += 1
 
         return consecutive_samples * self._sample_interval_s / 3600
+
+    def get_recent_flip_count(
+        self,
+        long_exchange: str,
+        short_exchange: str,
+        symbol: str,
+        lookback_samples: int,
+    ) -> int:
+        """Count funding direction flips in the last N snapshots."""
+        history = self._snapshots.get(symbol)
+        if not history:
+            return 0
+
+        recent = list(history)[-lookback_samples:]
+        flips = 0
+        prev_favorable: bool | None = None
+        for snap in recent:
+            long_rate = self._snap_rate_for(snap, long_exchange)
+            short_rate = self._snap_rate_for(snap, short_exchange)
+            if long_rate is None or short_rate is None:
+                continue
+            favorable = short_rate.apr > long_rate.apr
+            if prev_favorable is not None and favorable != prev_favorable:
+                flips += 1
+            prev_favorable = favorable
+
+        return flips
+
+    @staticmethod
+    def _snap_rate_for(snap: FundingSnapshot, exchange: str) -> FundingRate | None:
+        if exchange == "hyperliquid":
+            return snap.hl_rate
+        if exchange == "lighter":
+            return snap.lighter_rate
+        return None
 
     def record_signal(self, symbol: str, score: float) -> None:
         self._signaled[symbol] = (datetime.now(timezone.utc).timestamp(), score)

@@ -92,13 +92,11 @@ async def test_validator_detects_funding_direction_flip() -> None:
                         loop_interval_s=3600)
     state = MarketState(sample_interval_s=3600)
 
-    # Simulate alternating direction: HL>Lighter, HL<Lighter, HL>Lighter
-    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 20.0)})
-    await state.update_funding("lighter", {"BTC": _funding("BTC", 5.0)})
-    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
-    await state.update_funding("lighter", {"BTC": _funding("BTC", 20.0)})
-    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 20.0)})
-    await state.update_funding("lighter", {"BTC": _funding("BTC", 5.0)})
+    # Simulate alternating direction via paired snapshots:
+    # HL>Lighter, HL<Lighter, HL>Lighter
+    state.record_snapshot("BTC", _funding("BTC", 20.0), _funding("BTC", 5.0))
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 20.0))
+    state.record_snapshot("BTC", _funding("BTC", 20.0), _funding("BTC", 5.0))
 
     await state.update_tickers("hyperliquid", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
     await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
@@ -164,5 +162,36 @@ async def test_validator_anti_churn_suppresses_repeated_signal() -> None:
 
     # Third call with score > 1.5x: should be ready again
     high_opps = [_opp("BTC", score=80.0)]
+    result3 = validate_opportunities(high_opps, state, settings)
+    assert result3[0].status == "ready"
+
+
+@pytest.mark.asyncio
+async def test_validator_ready_does_not_re_record_signal_on_subsequent_polls() -> None:
+    """After a score improvement passes anti-churn, the signal is NOT re-recorded
+    on subsequent polls, so the opportunity stays 'ready' indefinitely."""
+    settings = Settings(
+        min_persistence_hours=0.0, expected_hold_hours=72.0, stale_data_s=60.0,
+        anti_churn_cooldown_s=14400.0, anti_churn_score_multiplier=1.5,
+    )
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("lighter", {"BTC": _funding("BTC", 20.0)})
+    await state.update_tickers("hyperliquid", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+    await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+
+    opps = [_opp("BTC", score=50.0)]
+
+    # First call: ready, signal recorded
+    result1 = validate_opportunities(opps, state, settings)
+    assert result1[0].status == "ready"
+
+    # Call with improved score to pass anti-churn
+    high_opps = [_opp("BTC", score=80.0)]
+    result2 = validate_opportunities(high_opps, state, settings)
+    assert result2[0].status == "ready"
+
+    # Same high score again — should still be ready (signal not re-recorded at new timestamp)
     result3 = validate_opportunities(high_opps, state, settings)
     assert result3[0].status == "ready"

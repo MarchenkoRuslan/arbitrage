@@ -82,3 +82,26 @@ async def test_request_with_retry_raises_after_retry_budget_exhausted(monkeypatc
         await client.close()
 
     assert sleep_calls == [0.25, 0.5]
+
+
+@pytest.mark.asyncio
+async def test_request_with_retry_raises_http_error_on_429_exhaustion(monkeypatch) -> None:
+    client = ResilientClient(base_url="https://example.com", max_retries=2, backoff_base=0.5)
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        sleep_calls.append(delay)
+
+    async def fake_method(path: str, **kwargs) -> httpx.Response:
+        return _response(429, headers={"Retry-After": "0.1"})
+
+    monkeypatch.setattr("src.core.http.asyncio.sleep", fake_sleep)
+
+    try:
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            await client._request_with_retry(fake_method, "/test")
+        assert "Rate limited" in str(exc_info.value)
+    finally:
+        await client.close()
+
+    assert len(sleep_calls) == 3  # max_retries + 1 attempts, each sleeps on 429

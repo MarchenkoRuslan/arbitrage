@@ -27,10 +27,12 @@ class ResilientClient:
         **kwargs,
     ) -> httpx.Response:
         last_exc: Exception | None = None
+        last_resp: httpx.Response | None = None
         for attempt in range(self._max_retries + 1):
             try:
                 resp = await method(path, **kwargs)
                 if resp.status_code == 429:
+                    last_resp = resp
                     retry_after = float(resp.headers.get("Retry-After", self._backoff_base * 2))
                     logger.warning("Rate limited on {}, retry after {:.1f}s", path, retry_after)
                     await asyncio.sleep(retry_after)
@@ -55,7 +57,14 @@ class ResilientClient:
                         delay,
                     )
                     await asyncio.sleep(delay)
-        raise last_exc  # type: ignore[misc]
+        if last_exc is not None:
+            raise last_exc
+        # All attempts consumed by rate limiting (429)
+        raise httpx.HTTPStatusError(
+            f"Rate limited on {path} after {self._max_retries + 1} attempts",
+            request=last_resp.request,  # type: ignore[union-attr]
+            response=last_resp,  # type: ignore[arg-type]
+        )
 
     async def get(self, path: str, **kwargs) -> httpx.Response:
         return await self._request_with_retry(self._client.get, path, **kwargs)

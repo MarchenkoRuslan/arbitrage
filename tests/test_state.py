@@ -75,10 +75,9 @@ async def test_market_state_is_stale_depends_on_update_age() -> None:
 async def test_market_state_tracks_consecutive_funding_persistence() -> None:
     state = MarketState(sample_interval_s=3600)
 
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
-    await state.update_single_funding("lighter", "BTC", _funding("BTC", 11.0))
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 6.0))
-    await state.update_single_funding("lighter", "BTC", _funding("BTC", 12.0))
+    # Two snapshots where lighter (short) > hyperliquid (long)
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
+    state.record_snapshot("BTC", _funding("BTC", 6.0), _funding("BTC", 12.0))
 
     persistence_hours = state.get_funding_persistence_hours("hyperliquid", "lighter", "BTC")
 
@@ -89,11 +88,38 @@ async def test_market_state_tracks_consecutive_funding_persistence() -> None:
 async def test_market_state_stops_persistence_on_direction_flip() -> None:
     state = MarketState(sample_interval_s=3600)
 
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
-    await state.update_single_funding("lighter", "BTC", _funding("BTC", 11.0))
-    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 14.0))
-    await state.update_single_funding("lighter", "BTC", _funding("BTC", 12.0))
+    # First snapshot: lighter > hyperliquid (favorable)
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
+    # Second snapshot: hyperliquid > lighter (unfavorable flip)
+    state.record_snapshot("BTC", _funding("BTC", 14.0), _funding("BTC", 12.0))
 
     persistence_hours = state.get_funding_persistence_hours("hyperliquid", "lighter", "BTC")
 
     assert persistence_hours == 0.0
+
+
+@pytest.mark.asyncio
+async def test_market_state_get_recent_flip_count() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    # Alternating direction: favorable, unfavorable, favorable
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
+    state.record_snapshot("BTC", _funding("BTC", 14.0), _funding("BTC", 12.0))
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
+
+    flips = state.get_recent_flip_count("hyperliquid", "lighter", "BTC", lookback_samples=6)
+
+    assert flips == 2
+
+
+@pytest.mark.asyncio
+async def test_market_state_flip_count_zero_when_stable() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    state.record_snapshot("BTC", _funding("BTC", 5.0), _funding("BTC", 11.0))
+    state.record_snapshot("BTC", _funding("BTC", 6.0), _funding("BTC", 12.0))
+    state.record_snapshot("BTC", _funding("BTC", 4.0), _funding("BTC", 10.0))
+
+    flips = state.get_recent_flip_count("hyperliquid", "lighter", "BTC", lookback_samples=6)
+
+    assert flips == 0
