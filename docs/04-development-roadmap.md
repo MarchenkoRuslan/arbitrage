@@ -21,9 +21,14 @@
 - [x] Combined scoring: funding edge − fees + basis bonus
 - [x] Fee model: HL 3.5 bps/side, Lighter 0 bps → 7 bps roundtrip
 - [x] Volume filter, staleness check, negative-basis breakeven check
+- [x] Open-interest filter (configurable)
+- [x] Index-aware basis denominator (fallback to mark midpoint)
 - [x] CLI output (ranked table with Score bps, Diff APR%, Basis bps, BE h)
 - [x] Auto-refresh loop (`--loop` flag)
 - [x] In-memory MarketState for zero-IO hot path
+- [x] Persistence tracking in MarketState
+- [x] Entry validator (ready/watching/blocked)
+- [x] Anti-churn signal cooldown
 
 **Live output sample:**
 ```
@@ -69,7 +74,7 @@ KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
 
 ---
 
-## Phase 4: Risk + Automation
+## Phase 5: Risk + Automation
 **Goal:** Protection and automation
 
 - [ ] Margin monitoring + alerts
@@ -81,7 +86,7 @@ KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
 
 ---
 
-## Phase 5: Advanced
+## Phase 6: Advanced
 - [ ] Survival analysis (window duration forecasting)
 - [ ] Spot + Futures strategy
 - [ ] Backtesting
@@ -91,6 +96,6 @@ KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
 
 ## Current Stage
 
-- Actual state: late Phase 1
-- Already running in production: polling-based MVP screener
-- Next key step: move ingestion to a WS-first mode and add a persistence gate
+- Actual state: Phase 1.5 (enhanced screener)
+- Already running in production: polling-based screener with validator and anti-churn
+- Next key step: notifications/API layer, then WS-first ingestion
