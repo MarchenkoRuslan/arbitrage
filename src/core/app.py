@@ -7,7 +7,7 @@ from src.core.state import MarketState
 from src.exchanges.aster import AsterConnector
 from src.exchanges.hyperliquid import HyperliquidConnector
 from src.output.console import print_opportunities
-from src.screener.finder import find_opportunities, find_opportunities_from_state
+from src.screener.finder import find_opportunities_from_state
 
 
 class App:

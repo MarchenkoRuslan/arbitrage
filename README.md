@@ -1,5 +1,7 @@
 # Funding Rate Arbitrage System
 
+[![CI](https://github.com/MarchenkoRuslan/arbitrage/actions/workflows/ci.yml/badge.svg)](https://github.com/MarchenkoRuslan/arbitrage/actions/workflows/ci.yml)
+
 ## Overview
 
 System for finding funding rate arbitrage opportunities between Hyperliquid and Aster.

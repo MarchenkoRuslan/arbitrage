@@ -16,9 +16,10 @@ def hl_symbol_to_normalized(coin: str) -> str:
 
 def aster_symbol_to_normalized(symbol: str) -> str:
     """Aster uses Binance-style: BTCUSDT -> BTC."""
-    if symbol.endswith("USDT"):
-        return symbol[:-4].upper()
-    return symbol.upper()
+    upper_symbol = symbol.upper()
+    if upper_symbol.endswith("USDT"):
+        return upper_symbol[:-4]
+    return upper_symbol
 
 
 def normalized_to_aster(symbol: str) -> str:
