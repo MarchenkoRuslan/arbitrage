@@ -10,21 +10,40 @@ def find_opportunities_from_state(state: MarketState, settings: Settings) -> lis
     hl_tickers = state.get_tickers("hyperliquid")
     lighter_tickers = state.get_tickers("lighter")
 
+    persistence_by_symbol: dict[str, float] = {}
     fresh_symbols: set[str] = set()
     for symbol in set(hl_rates) & set(lighter_rates) & set(hl_tickers) & set(lighter_tickers):
         if state.is_stale("hyperliquid", symbol, max_age_s=settings.stale_data_s):
             continue
         if state.is_stale("lighter", symbol, max_age_s=settings.stale_data_s):
             continue
+
+        if hl_rates[symbol].apr > lighter_rates[symbol].apr:
+            long_exchange = "lighter"
+            short_exchange = "hyperliquid"
+        else:
+            long_exchange = "hyperliquid"
+            short_exchange = "lighter"
+
+        persistence_hours = state.get_funding_persistence_hours(long_exchange, short_exchange, symbol)
+        if persistence_hours < settings.min_persistence_hours:
+            continue
+
+        persistence_by_symbol[symbol] = persistence_hours
         fresh_symbols.add(symbol)
 
-    return find_opportunities(
+    opportunities = find_opportunities(
         {s: hl_rates[s] for s in fresh_symbols},
         {s: lighter_rates[s] for s in fresh_symbols},
         {s: hl_tickers[s] for s in fresh_symbols},
         {s: lighter_tickers[s] for s in fresh_symbols},
         settings,
     )
+
+    for opp in opportunities:
+        opp.persistence_hours = round(persistence_by_symbol.get(opp.symbol, 0.0), 2)
+
+    return opportunities
 
 
 def find_opportunities(
@@ -51,6 +70,15 @@ def find_opportunities(
         if min(hl_tick.volume_24h, lighter_tick.volume_24h) < settings.min_volume_24h:
             continue
 
+        # OI filter: skip if open interest is known and below threshold
+        if settings.min_open_interest > 0:
+            hl_oi = hl_tick.open_interest
+            lighter_oi = lighter_tick.open_interest
+            if hl_oi is not None and hl_oi < settings.min_open_interest:
+                continue
+            if lighter_oi is not None and lighter_oi < settings.min_open_interest:
+                continue
+
         if hl.apr > lighter.apr:
             long_exchange, short_exchange = "lighter", "hyperliquid"
             long_rate_apr, short_rate_apr = lighter.apr, hl.apr
@@ -64,10 +92,15 @@ def find_opportunities(
         funding_edge_bps = funding_diff_apr * (hold_hours / 8760) * 100
         hourly_funding_bps = funding_edge_bps / hold_hours if hold_hours > 0 else 0.0
 
+        # Directional basis: positive when the short leg is richer than the long leg.
+        # Use index_price as denominator when both legs provide it (more accurate).
         basis_bps = 0.0
         if long_tick.mark_price > 0 and short_tick.mark_price > 0:
-            mid = float(long_tick.mark_price + short_tick.mark_price) / 2
-            basis_bps = float(short_tick.mark_price - long_tick.mark_price) / mid * 10000
+            if long_tick.index_price and short_tick.index_price:
+                denom = float(long_tick.index_price + short_tick.index_price) / 2
+            else:
+                denom = float(long_tick.mark_price + short_tick.mark_price) / 2
+            basis_bps = float(short_tick.mark_price - long_tick.mark_price) / denom * 10000
 
         hours_to_breakeven = None
         if basis_bps < 0 and hourly_funding_bps > 0:

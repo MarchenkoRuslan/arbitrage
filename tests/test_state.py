@@ -1,47 +1,99 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from src.core.models import FundingRate, Ticker
-from src.core.state import MarketState
+from src.core.state import MarketState, StateKey
 
 
 def _funding(symbol: str, apr: float = 12.0) -> FundingRate:
-    return FundingRate(symbol=symbol, rate=Decimal("0.0001"), period_hours=1, apr=apr,
-                       timestamp=datetime(2026, 1, 1, tzinfo=UTC))
+    return FundingRate(
+        symbol=symbol,
+        rate=Decimal("0.0001"),
+        period_hours=1,
+        apr=apr,
+        timestamp=datetime(2026, 1, 1, tzinfo=UTC),
+    )
 
 
 def _ticker(symbol: str, mark_price: str = "100") -> Ticker:
-    return Ticker(symbol=symbol, mark_price=Decimal(mark_price),
-                  index_price=Decimal(mark_price), volume_24h=1_000_000)
+    return Ticker(
+        symbol=symbol,
+        mark_price=Decimal(mark_price),
+        index_price=Decimal(mark_price),
+        volume_24h=1_000_000,
+    )
 
 
 @pytest.mark.asyncio
 async def test_market_state_update_and_snapshot_reads_are_exchange_scoped() -> None:
     state = MarketState()
+
     await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 10.0)})
     await state.update_tickers("lighter", {"BTC": _ticker("BTC", "101")})
-    assert state.get_funding("hyperliquid")["BTC"].apr == 10.0
-    assert state.get_tickers("lighter")["BTC"].mark_price == Decimal("101")
+
+    funding = state.get_funding("hyperliquid")
+    tickers = state.get_tickers("lighter")
+
+    assert funding["BTC"].apr == 10.0
+    assert tickers["BTC"].mark_price == Decimal("101")
     assert state.get_funding("lighter") == {}
     assert state.get_tickers("hyperliquid") == {}
 
 
 @pytest.mark.asyncio
-async def test_market_state_is_not_stale_immediately_after_update() -> None:
+async def test_market_state_tracks_last_update_for_single_item_updates() -> None:
     state = MarketState()
-    await state.update_funding("hyperliquid", {"ETH": _funding("ETH", 8.0)})
-    assert state.is_stale("hyperliquid", "ETH", max_age_s=30.0) is False
+
+    await state.update_single_funding("hyperliquid", "ETH", _funding("ETH", 8.0))
+    await state.update_single_ticker("hyperliquid", "ETH", _ticker("ETH", "2500"))
+
+    last_update = state.get_last_update("hyperliquid", "ETH")
+
+    assert last_update is not None
+    assert last_update.tzinfo is UTC
+    assert state.get_funding("hyperliquid")["ETH"].apr == 8.0
+    assert state.get_tickers("hyperliquid")["ETH"].mark_price == Decimal("2500")
+
+
+@pytest.mark.asyncio
+async def test_market_state_is_stale_depends_on_update_age() -> None:
+    state = MarketState()
+
+    assert state.is_stale("hyperliquid", "BTC") is True
+
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC"))
+    assert state.is_stale("hyperliquid", "BTC", max_age_s=30.0) is False
+
+    state._updated_at[StateKey("hyperliquid", "BTC")] = datetime.now(UTC) - timedelta(seconds=31)
+
     assert state.is_stale("hyperliquid", "BTC", max_age_s=30.0) is True
 
 
 @pytest.mark.asyncio
-async def test_market_state_persistence_requires_both_exchange_histories() -> None:
-    state = MarketState(sample_interval_s=3600.0)
-    assert state.get_funding_persistence_hours("hyperliquid", "lighter", "BTC") == 0.0
-    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
-    await state.update_funding("lighter", {"BTC": _funding("BTC", 20.0)})
-    # lighter apr > hl apr -> long=hyperliquid, short=lighter
-    hours = state.get_funding_persistence_hours("hyperliquid", "lighter", "BTC")
-    assert hours == pytest.approx(1.0)
+async def test_market_state_tracks_consecutive_funding_persistence() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
+    await state.update_single_funding("lighter", "BTC", _funding("BTC", 11.0))
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 6.0))
+    await state.update_single_funding("lighter", "BTC", _funding("BTC", 12.0))
+
+    persistence_hours = state.get_funding_persistence_hours("hyperliquid", "lighter", "BTC")
+
+    assert persistence_hours == 2.0
+
+
+@pytest.mark.asyncio
+async def test_market_state_stops_persistence_on_direction_flip() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
+    await state.update_single_funding("lighter", "BTC", _funding("BTC", 11.0))
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 14.0))
+    await state.update_single_funding("lighter", "BTC", _funding("BTC", 12.0))
+
+    persistence_hours = state.get_funding_persistence_hours("hyperliquid", "lighter", "BTC")
+
+    assert persistence_hours == 0.0

@@ -7,29 +7,32 @@ from src.core.config import Settings
 from src.core.http import ResilientClient
 from src.core.models import FundingRate, Ticker
 from src.core.normalize import hl_symbol_to_normalized, rate_to_apr
+from src.core.state import MarketState
 from src.exchanges.schemas import HLAssetCtx, HLAssetInfo
 
 FUNDING_PERIOD_HOURS = 1
 
 
 class HyperliquidConnector:
-    """Fetches funding rates and tickers from Hyperliquid in a single REST call."""
-
     name = "hyperliquid"
 
     def __init__(self, settings: Settings) -> None:
+        self._settings = settings
         self._client = ResilientClient(
             base_url=settings.hl_base_url,
             timeout=settings.http_timeout,
             max_retries=settings.http_max_retries,
         )
 
-    async def get_market_data(self) -> tuple[dict[str, FundingRate], dict[str, Ticker]]:
-        resp = await self._client.post("/info", json={"type": "metaAndAssetCtxs"})
+    async def _fetch_meta_and_asset_ctxs(self) -> tuple[list[HLAssetInfo], list[HLAssetCtx]]:
+        resp = await self._client.post(
+            "/info",
+            json={"type": "metaAndAssetCtxs"},
+        )
         data = resp.json()
-        universe = [HLAssetInfo(**item) for item in data[0]["universe"]]
-        asset_ctxs = [HLAssetCtx(**item) for item in data[1]]
-        return self._parse_rates_and_tickers(universe, asset_ctxs)
+        universe = [HLAssetInfo.model_validate(a) for a in data[0]["universe"]]
+        asset_ctxs = [HLAssetCtx.model_validate(c) for c in data[1]]
+        return universe, asset_ctxs
 
     def _parse_rates_and_tickers(
         self,
@@ -40,11 +43,10 @@ class HyperliquidConnector:
         tickers: dict[str, Ticker] = {}
         now = datetime.now(timezone.utc)
 
-        for info, ctx in zip(universe, asset_ctxs):
-            if ctx.funding is None or ctx.markPx is None:
-                continue
-            try:
-                symbol = hl_symbol_to_normalized(info.name)
+        for asset_info, ctx in zip(universe, asset_ctxs):
+            symbol = hl_symbol_to_normalized(asset_info.name)
+
+            if ctx.funding is not None:
                 rate = Decimal(ctx.funding)
                 rates[symbol] = FundingRate(
                     symbol=symbol,
@@ -53,18 +55,36 @@ class HyperliquidConnector:
                     apr=rate_to_apr(rate, FUNDING_PERIOD_HOURS),
                     timestamp=now,
                 )
+
+            if ctx.markPx is not None:
                 tickers[symbol] = Ticker(
                     symbol=symbol,
                     mark_price=Decimal(ctx.markPx),
                     index_price=Decimal(ctx.oraclePx) if ctx.oraclePx else None,
                     volume_24h=float(ctx.dayNtlVlm or 0),
-                    open_interest=float(ctx.openInterest) if ctx.openInterest else None,
+                    open_interest=float(ctx.openInterest) if ctx.openInterest is not None else None,
                 )
-            except (ValueError, ArithmeticError) as exc:
-                logger.debug("Skipping HL asset {}: {}", info.name, exc)
 
-        logger.debug("Hyperliquid: parsed {} markets", len(rates))
         return rates, tickers
+
+    async def get_market_data(self) -> tuple[dict[str, FundingRate], dict[str, Ticker]]:
+        """Fetch rates and tickers in one request."""
+        universe, asset_ctxs = await self._fetch_meta_and_asset_ctxs()
+        rates, tickers = self._parse_rates_and_tickers(universe, asset_ctxs)
+        logger.debug("HL: {} rates, {} tickers", len(rates), len(tickers))
+        return rates, tickers
+
+    async def get_funding_rates(self) -> dict[str, FundingRate]:
+        rates, _ = await self.get_market_data()
+        return rates
+
+    async def get_tickers(self) -> dict[str, Ticker]:
+        _, tickers = await self.get_market_data()
+        return tickers
+
+    async def start_stream(self, state: MarketState) -> None:
+        """Placeholder — WS implementation in hyperliquid_ws.py."""
+        raise NotImplementedError("Use HyperliquidWsFeed for streaming")
 
     async def close(self) -> None:
         await self._client.close()

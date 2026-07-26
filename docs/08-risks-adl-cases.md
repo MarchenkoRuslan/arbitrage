@@ -11,7 +11,7 @@ AFTER ADL:  Long remains, Short is closed = directional risk
 
 ### ANSEM Case
 ```
-Position: Spot on MEXC + Short on Aster
+Historical case: Spot on MEXC + Short on Aster
 Funding: ~5% over 10 days (182% APR)
 Event: Robinhood chain meme season -> ANSEM drops 30-40%
 ADL: short closed @ $0.22

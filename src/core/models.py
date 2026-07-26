@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -35,3 +36,9 @@ class ArbitrageOpportunity(BaseModel):
     min_profitable_hours: float | None = None
     hours_to_breakeven: float | None = None
     combined_score: float
+
+
+class ValidatedOpportunity(BaseModel):
+    opportunity: ArbitrageOpportunity
+    status: Literal["ready", "watching", "blocked"]
+    reasons: list[str] = []

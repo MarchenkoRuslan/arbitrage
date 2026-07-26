@@ -7,23 +7,47 @@ from src.exchanges.hyperliquid import HyperliquidConnector
 from src.exchanges.schemas import HLAssetCtx, HLAssetInfo, LighterOrderBook
 
 
+class _FakeResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
 def test_hyperliquid_parse_rates_and_tickers_skips_missing_fields() -> None:
     connector = HyperliquidConnector(Settings())
+
     rates, tickers = connector._parse_rates_and_tickers(
-        universe=[HLAssetInfo(name="btc"), HLAssetInfo(name="eth")],
+        universe=[
+            HLAssetInfo(name="btc"),
+            HLAssetInfo(name="eth"),
+        ],
         asset_ctxs=[
-            HLAssetCtx(funding="0.0002", markPx="100", oraclePx="101",
-                       dayNtlVlm="12345", openInterest="9876.5"),
-            HLAssetCtx(funding=None, markPx=None, oraclePx="200", dayNtlVlm="999"),
+            HLAssetCtx(
+                funding="0.0002",
+                markPx="100",
+                oraclePx="101",
+                dayNtlVlm="12345",
+                openInterest="9876.5",
+            ),
+            HLAssetCtx(
+                funding=None,
+                markPx=None,
+                oraclePx="200",
+                dayNtlVlm="999",
+            ),
         ],
     )
+
     assert list(rates) == ["BTC"]
     assert list(tickers) == ["BTC"]
     assert rates["BTC"].rate == Decimal("0.0002")
-    assert rates["BTC"].period_hours == 1
+    assert rates["BTC"].apr == 175.2
     assert tickers["BTC"].mark_price == Decimal("100")
     assert tickers["BTC"].index_price == Decimal("101")
     assert tickers["BTC"].volume_24h == 12345.0
+    assert tickers["BTC"].open_interest == 9876.5
 
 
 def test_lighter_connector_computes_funding_rate_from_mark_index() -> None:
@@ -40,7 +64,6 @@ def test_lighter_connector_computes_funding_rate_from_mark_index() -> None:
 
 
 def test_lighter_connector_skips_inactive_markets() -> None:
-    # LighterOrderBook with status != "active" should be skipped by connector
     raw = {
         "symbol": "OLD", "market_id": 99, "market_type": "perp", "status": "closed",
         "mark_price": "100.0", "index_price": "100.0",

@@ -62,7 +62,7 @@ Earn from price convergence between exchanges while also receiving funding.
 ```
 Example (UMA):
 - Hyperliquid: Long @ $0.3901
-- Aster: Short @ $0.3932
+- Lighter: Short @ $0.3932
 - Basis: +80.5 bps (short exchange is richer, which helps us)
 - Funding APR: 67%
 - Fees: ~21 bps
@@ -122,7 +122,7 @@ With 5x leverage: about 54.75% APR before fees
 | Exchange risk | Trading freeze, delisting | Diversify across exchanges |
 
 ### ANSEM Case (Real)
-- Spot on MEXC + Short on Aster, funding about 5% over 10 days (182% APR)
+- Historical: Spot on MEXC + Short on Aster, funding about 5% over 10 days (182% APR)
 - Overnight ANSEM drops 30-40% -> short closed by ADL @ $0.22
 - Lucky outcome: spot sold @ $0.27 -> +$4k
 - Alternative outcome: if spot had dropped below $0.22 -> loss
@@ -153,10 +153,10 @@ With 5x leverage: about 54.75% APR before fees
 | Bybit | 8h | Standard |
 | OKX | 8h | Standard |
 | Hyperliquid | 1h | Frequent settlements |
+| Lighter | 1h (approximated) | Frequent settlements |
 | dYdX | 1h | Frequent settlements |
 | Bitget | 8h | Standard |
 | Gate.io | 8h | Standard |
-| Aster | 8h | Heavy memecoin coverage |
 
 ---
 

@@ -3,47 +3,30 @@
 ## High-Level Diagram
 
 ```
-+---------------------------------------------------------------+
-|                      ARBITRAGE SYSTEM                         |
-|                                                               |
-|   +------------------+         +------------------+          |
-|   |  Hyperliquid     |         |     Lighter      |          |
-|   |  DEX (Layer 1)   |         |  DEX (ZK / ETH)  |          |
-|   |  POST /info      |         |  GET /orderBook  |          |
-|   |  232 markets     |         |  219 markets     |          |
-|   |  1h funding      |         |  1h funding, 0 fee          |
-|   +--------+---------+         +--------+---------+          |
-|            |   asyncio.gather()          |                    |
-|            +------------+----------------+                    |
-|                         |                                     |
-|             +-----------v-----------+                         |
-|             |    MarketState Cache  |  <- per exchange+symbol |
-|             |    staleness check    |     funding history     |
-|             +-----------+-----------+                         |
-|                         |                                     |
-|             +-----------v-----------+                         |
-|             |       Screener        |  <- scoring + ranking   |
-|             +-----------+-----------+                         |
-|                         |                                     |
-|             +-----------v-----------+                         |
-|             |    Console Output     |  <- ranked table        |
-|             +-----------------------+                         |
-+---------------------------------------------------------------+
-```
-
----
-
-## Poll Cycle (every `loop_interval_s` seconds)
-
-```
-App.poll_once()
-  +-- asyncio.gather(
-  |     HyperliquidConnector.get_market_data()   # POST /info -> (rates, tickers)
-  |     LighterConnector.get_market_data()       # GET /orderBookDetails -> (rates, tickers)
-  |   )
-  +-- state.update_funding/tickers (both exchanges)
-  +-- find_opportunities_from_state(state, settings)
-  +-- print_opportunities(opps)
+┌─────────────────────────────────────────────────────────────┐
+│                     ARBITRAGE SYSTEM                         │
+│                                                             │
+│  ┌──────────────┐                  ┌──────────────────────┐  │
+│  │ Hyperliquid  │                  │       Lighter        │  │
+│  └──────┬───────┘                  └─────────┬────────────┘  │
+│         └──────────────┬─────────────────────┘               │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ Ingestion Layer    │ ← REST + WS feeds        │
+│              └─────────┬──────────┘                           │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ MarketState Cache  │ ← In-memory shared state │
+│              └─────────┬──────────┘                           │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ Screener           │ ← scoring + ranking      │
+│              └─────────┬──────────┘                           │
+│                        │                                      │
+│              ┌─────────▼──────────┐                           │
+│              │ Output/Alerts      │ ← CLI now, API later     │
+│              └────────────────────┘                           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -52,47 +35,102 @@ App.poll_once()
 
 ### 1. Exchange Connectors
 
-Each connector is self-contained with no shared state.
+Unified interface for venues (native adapters + protocol).
 
-**HyperliquidConnector** (`src/exchanges/hyperliquid.py`)
-- Single call: `POST /info {"type": "metaAndAssetCtxs"}` returns funding + tickers
-- Funding period: 1h. Rate is the raw periodic value from the exchange.
-- No authentication required.
-
-**LighterConnector** (`src/exchanges/lighter.py`)
-- Single call: `GET /api/v1/orderBookDetails?filter=perp` returns all perp markets
-- Funding rate approximated as `(mark_price - index_price) / index_price / 8` (hourly)
-- Zero trading fees. No authentication required.
-
-### 2. MarketState
-
-Asyncio-safe in-memory cache keyed by `exchange::symbol`.
-- Stores `FundingRate` and `Ticker` per (exchange, symbol)
-- Tracks update timestamps for staleness checks (`stale_data_s`)
-- Maintains funding history deques for future persistence scoring
-
-### 3. Screener (`src/screener/finder.py`)
-
-```
-combined_score_bps = funding_edge_bps - roundtrip_fee_bps + basis_bonus_bps
-
-funding_edge_bps  = funding_diff_apr x (hold_hours / 8760) x 100
-roundtrip_fee_bps = (hl_fee_per_side + lighter_fee_per_side) x 2 x 100  # = 7 bps
-basis_bonus_bps   = max(0, directional_basis_bps) x basis_weight
+```python
+class ExchangeConnector(Protocol):
+  async def get_funding_rates(self) -> dict[str, FundingRate]
+  async def get_tickers(self) -> dict[str, Ticker]
+  async def get_market_data(self) -> tuple[dict[str, FundingRate], dict[str, Ticker]]
+  async def start_stream(self, state: MarketState) -> None
+  async def close(self) -> None
 ```
 
-Filters applied:
-1. Both symbols present and not stale
-2. `min(hl_volume, lighter_volume) >= min_volume_24h`
-3. Negative basis: skip if funding cannot cover the loss within the hold window
-4. `combined_score >= min_score_bps`
+### 2. Screener
 
-### 4. App Orchestrator (`src/core/app.py`)
+Collect funding rates from all exchanges -> find pairs with the largest spread -> rank them.
 
-- Manages connector lifecycle and graceful shutdown
-- Runs parallel fetch via `asyncio.gather`
-- Drives the polling loop at configurable interval
+```python
+@dataclass
+class ArbitrageOpportunity:
+    symbol: str
+    long_exchange: str
+    short_exchange: str
+    funding_diff_apr: Decimal   # Funding rate spread (APR)
+    basis_bps: Decimal          # Directional basis, positive when short is richer
+    combined_score: Decimal     # Expected net edge over hold window, in bps
+```
 
-### 5. Trader (Execution, planned)
+**Logic:**
+1. Ingestion updates `MarketState` (REST polling now, WS-first later)
+2. For each shared symbol, determine the long/short direction by APR
+3. Calculate directional basis, expected funding edge, and combined score
+4. Filter by minimum score (persistence gate comes in the next step)
+5. Rank by `combined_score`
 
-Not implemented. Planned: simultaneous delta-neutral position open on both DEXes.
+### 3. App Orchestrator
+
+- Manages lifecycle: startup, polling loop, graceful shutdown
+- Updates `MarketState`
+- Runs the screener and output layer
+
+### 4. Trader (Execution, planned)
+
+Simultaneous position open/close flow.
+
+**Principles:**
+- Entry sequencing: hedge leg first, exposed leg second
+- Maker-first: limit order → wait → fallback to taker
+- Size positions in COINS (not USDT)
+- Roll back if one leg fails
+- Reconcile state after restart
+
+### 5. Risk/Monitor (planned)
+
+- Margin ratio monitoring
+- ADL detection
+- Funding rate change alerts
+- Spread expansion alerts
+- Auto-close on critical events
+- Telegram notifications
+
+---
+
+## Data Flows
+
+```
+Current runtime (polling):
+  Exchanges → Connectors → MarketState → Screener → CLI
+
+Target runtime (WS-first):
+  WS Feeds + REST Snapshot/Recovery → MarketState → Screener → Alerts/API
+
+Position opening:
+  Signal → Risk Check → Size Calc → Parallel Orders → Position Record
+
+Monitoring (continuous):
+  Exchanges → Prices/Margin/Funding → Monitor → Alerts/Auto-actions
+
+Position closing:
+  Signal → Parallel Close → PnL Calc → Record
+```
+
+---
+
+## Operating Modes
+
+1. **Screener-only** - shows opportunities but does not trade
+2. **Manual** — planned
+3. **Semi-auto** — planned
+4. **Full-auto** — planned
+
+## Validation
+
+- Install dependencies with `python -m pip install -e ".[dev]"`.
+- Run the app with `python -m src.main` or `python -m src.main --loop`.
+- Use `pytest` for tests and `ruff check .` for linting when a task touches Python code.
+
+## Documentation
+
+- Keep README and docs aligned with the current implementation status.
+- Prefer short, concrete explanations over roadmap-style prose.

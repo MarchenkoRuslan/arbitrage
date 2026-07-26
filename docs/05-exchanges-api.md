@@ -84,18 +84,18 @@ Lighter charges zero trading fees, so the entire friction is Hyperliquid’s tak
 LINK, AAVE, WLD, ENA, TAO, NEAR, ADA, XMR, HYPE, TRUMP, KAITO, JUP, and more.
 ```python
 # Hyperliquid: coin name only ("BTC", "ETH", "ANSEM")
-# Aster: Binance-style ("BTCUSDT", "ETHUSDT", "ANSEMUSDT")
+# Lighter: coin name only ("BTC", "ETH", "ANSEM")
 
 SYMBOL_MAP = {
-    "BTC": {"hyperliquid": "BTC", "aster": "BTCUSDT"},
-    "ETH": {"hyperliquid": "ETH", "aster": "ETHUSDT"},
-    "ANSEM": {"hyperliquid": "ANSEM", "aster": "ANSEMUSDT"},
+  "BTC": {"hyperliquid": "BTC", "lighter": "BTC"},
+  "ETH": {"hyperliquid": "ETH", "lighter": "ETH"},
+  "ANSEM": {"hyperliquid": "ANSEM", "lighter": "ANSEM"},
 }
 ```
 
 ## Shared Connectivity Architecture
 
-Both venues use EIP-712 signing -> a shared signing utility makes sense:
+Hyperliquid uses EIP-712 signing for trading actions. Lighter execution signing can be added later in execution phase:
 ```python
 # Shared pattern:
 # 1. Construct typed data payload
@@ -103,14 +103,13 @@ Both venues use EIP-712 signing -> a shared signing utility makes sense:
 # 3. Submit action + signature + nonce
 
 # Hyperliquid: POST /exchange {action, nonce, signature}
-# Aster V3: Similar EIP-712 pattern
+# Lighter: execution signing is out of scope for read-only screener
 ```
 
 ## Authentication
 
 - **Hyperliquid (DEX):** EIP-712 typed data signature. API Wallet (`approveAgent`) for delegated trading.
-- **Aster V3 (DEX):** EIP-712 typed data signature (similar to HL). Supports agent keys.
-- **Aster V1 (legacy):** API Key + HMAC-SHA256 (Binance-like). New keys are no longer created as of March 2026.
+- **Lighter (DEX):** no authentication required for current read-only REST screener.
 - **CEX (future):** API Key + Secret. Permissions: Read + Trade. Never grant Withdraw.
 
 ## Python SDK dependencies

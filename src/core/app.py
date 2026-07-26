@@ -8,6 +8,7 @@ from src.exchanges.hyperliquid import HyperliquidConnector
 from src.exchanges.lighter import LighterConnector
 from src.output.console import print_opportunities
 from src.screener.finder import find_opportunities_from_state
+from src.screener.validator import validate_opportunities
 
 
 class App:
@@ -42,13 +43,17 @@ class App:
         )
 
         opps = find_opportunities_from_state(self.state, self.settings)
-        print_opportunities(opps)
+        validated = validate_opportunities(opps, self.state, self.settings)
+        print_opportunities(validated)
 
-        if not opps:
+        ready_count = sum(1 for v in validated if v.status == "ready")
+        if not validated:
             logger.info(
                 "No opportunities above {:.1f} bps edge threshold",
                 self.settings.min_score_bps,
             )
+        elif ready_count == 0:
+            logger.info("Found {} opportunities, none ready for entry", len(validated))
 
     async def run_loop(self) -> None:
         """Continuous polling loop."""
