@@ -79,12 +79,13 @@ Profit: basis convergence (+59.5 bps) + funding (18.4 bps/day)
 ### 3.1 Combined Score (Ranking Formula)
 
 ```
-combined_score = funding_24h - roundtrip_fees + basis_bonus
+combined_edge_bps = funding_edge_bps - roundtrip_fees_bps + basis_bonus_bps
 
 Where:
-- funding_24h = funding_rate_diff * periods_per_day in bps
-- roundtrip_fees = (taker_fee_A + taker_fee_B) * 2  (entry + exit)
-- basis_bonus = max(0, basis_bps) * 0.5  (50% realization assumption)
+- funding_edge_bps = funding_diff_apr * (expected_hold_hours / 8760) * 100
+- roundtrip_fees_bps = (taker_fee_A + taker_fee_B) * 2 * 100
+- basis_bonus_bps = max(0, directional_basis_bps) * 0.5
+- directional_basis_bps > 0 only when the short leg is richer than the long leg
 ```
 
 ### 3.2 Minimum Entry Threshold

@@ -30,6 +30,7 @@ def test_hyperliquid_parse_rates_and_tickers_skips_missing_fields() -> None:
                 markPx="100",
                 oraclePx="101",
                 dayNtlVlm="12345",
+                openInterest="9876.5",
             ),
             HLAssetCtx(
                 funding=None,
@@ -47,6 +48,7 @@ def test_hyperliquid_parse_rates_and_tickers_skips_missing_fields() -> None:
     assert tickers["BTC"].mark_price == Decimal("100")
     assert tickers["BTC"].index_price == Decimal("101")
     assert tickers["BTC"].volume_24h == 12345.0
+    assert tickers["BTC"].open_interest == 9876.5
 
 
 @pytest.mark.asyncio
@@ -105,3 +107,4 @@ async def test_aster_get_tickers_uses_last_price_fallback_and_normalizes_symbols
     assert tickers["BTC"].mark_price == Decimal("64000")
     assert tickers["BTC"].index_price == Decimal("63950")
     assert tickers["BTC"].volume_24h == 2500000.0
+    assert tickers["BTC"].open_interest is None

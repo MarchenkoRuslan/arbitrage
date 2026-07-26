@@ -1,11 +1,11 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from src.core.config import Settings
 from src.core.models import FundingRate, Ticker
-from src.core.state import MarketState
+from src.core.state import MarketState, StateKey
 from src.screener.finder import find_opportunities, find_opportunities_from_state
 
 
@@ -30,10 +30,12 @@ def _ticker(symbol: str, mark_price: str, volume_24h: float = 1_000_000) -> Tick
 
 def test_find_opportunities_sorts_by_combined_score_and_sets_direction() -> None:
     settings = Settings(
-        min_score_apr=1.0,
-        fee_per_side=0.0,
+        min_score_bps=1.0,
+        min_volume_24h=0.0,
+        hl_fee_per_side=0.0,
+        aster_fee_per_side=0.0,
         expected_hold_hours=72.0,
-        basis_weight=0.1,
+        basis_weight=0.5,
     )
 
     opportunities = find_opportunities(
@@ -47,11 +49,11 @@ def test_find_opportunities_sorts_by_combined_score_and_sets_direction() -> None
         },
         hl_tickers={
             "BTC": _ticker("BTC", "100"),
-            "ETH": _ticker("ETH", "200"),
+            "ETH": _ticker("ETH", "202"),
         },
         aster_tickers={
             "BTC": _ticker("BTC", "101"),
-            "ETH": _ticker("ETH", "202"),
+            "ETH": _ticker("ETH", "200"),
         },
         settings=settings,
     )
@@ -62,21 +64,32 @@ def test_find_opportunities_sorts_by_combined_score_and_sets_direction() -> None
     assert eth.long_exchange == "aster"
     assert eth.short_exchange == "hyperliquid"
     assert eth.funding_diff_apr == 25.0
+    assert eth.funding_edge_bps == 20.55
     assert eth.basis_bps == 99.5
-    assert eth.combined_score == 34.95
+    assert eth.basis_bonus_bps == 49.75
+    assert eth.fee_impact_bps == 0.0
+    assert eth.min_profitable_hours == 0.0
+    assert eth.hours_to_breakeven is None
+    assert eth.combined_score == 70.3
 
     btc = opportunities[1]
     assert btc.long_exchange == "hyperliquid"
     assert btc.short_exchange == "aster"
     assert btc.funding_diff_apr == 8.0
+    assert btc.funding_edge_bps == 6.58
     assert btc.basis_bps == 99.5
-    assert btc.combined_score == 17.95
+    assert btc.basis_bonus_bps == 49.75
+    assert btc.fee_impact_bps == 0.0
+    assert btc.min_profitable_hours == 0.0
+    assert btc.combined_score == 56.33
 
 
 def test_find_opportunities_filters_scores_below_threshold() -> None:
     settings = Settings(
-        min_score_apr=20.0,
-        fee_per_side=0.0,
+        min_score_bps=20.0,
+        min_volume_24h=0.0,
+        hl_fee_per_side=0.0,
+        aster_fee_per_side=0.0,
         expected_hold_hours=72.0,
         basis_weight=0.0,
     )
@@ -92,15 +105,85 @@ def test_find_opportunities_filters_scores_below_threshold() -> None:
     assert opportunities == []
 
 
-@pytest.mark.asyncio
-async def test_find_opportunities_from_state_reads_cached_market_data() -> None:
+def test_find_opportunities_skips_negative_basis_when_funding_cannot_cover_hold_window() -> None:
     settings = Settings(
-        min_score_apr=1.0,
-        fee_per_side=0.0,
+        min_score_bps=1.0,
+        min_volume_24h=0.0,
+        hl_fee_per_side=0.0,
+        aster_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.5,
+    )
+
+    opportunities = find_opportunities(
+        hl_rates={"ETH": _funding("ETH", 40.0)},
+        aster_rates={"ETH": _funding("ETH", 15.0)},
+        hl_tickers={"ETH": _ticker("ETH", "200")},
+        aster_tickers={"ETH": _ticker("ETH", "202")},
+        settings=settings,
+    )
+
+    assert opportunities == []
+
+
+def test_find_opportunities_filters_low_volume_symbols() -> None:
+    settings = Settings(
+        min_score_bps=1.0,
+        min_volume_24h=1_000_000.0,
+        hl_fee_per_side=0.0,
+        aster_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.5,
+    )
+
+    opportunities = find_opportunities(
+        hl_rates={"BTC": _funding("BTC", 12.0)},
+        aster_rates={"BTC": _funding("BTC", 20.0)},
+        hl_tickers={"BTC": _ticker("BTC", "100", volume_24h=999_999.0)},
+        aster_tickers={"BTC": _ticker("BTC", "101", volume_24h=2_000_000.0)},
+        settings=settings,
+    )
+
+    assert opportunities == []
+
+
+def test_find_opportunities_uses_asymmetric_roundtrip_fees() -> None:
+    settings = Settings(
+        min_score_bps=0.0,
+        min_volume_24h=0.0,
+        hl_fee_per_side=0.035,
+        aster_fee_per_side=0.05,
         expected_hold_hours=72.0,
         basis_weight=0.0,
     )
-    state = MarketState()
+
+    opportunities = find_opportunities(
+        hl_rates={"BTC": _funding("BTC", 5.0)},
+        aster_rates={"BTC": _funding("BTC", 35.0)},
+        hl_tickers={"BTC": _ticker("BTC", "100")},
+        aster_tickers={"BTC": _ticker("BTC", "100")},
+        settings=settings,
+    )
+
+    assert len(opportunities) == 1
+    assert opportunities[0].funding_edge_bps == 24.66
+    assert opportunities[0].fee_impact_bps == 17.0
+    assert opportunities[0].min_profitable_hours == 49.64
+    assert opportunities[0].combined_score == 7.66
+
+
+@pytest.mark.asyncio
+async def test_find_opportunities_from_state_reads_cached_market_data() -> None:
+    settings = Settings(
+        min_score_bps=1.0,
+        min_volume_24h=0.0,
+        min_persistence_hours=0.0,
+        hl_fee_per_side=0.0,
+        aster_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.0,
+    )
+    state = MarketState(sample_interval_s=3600)
 
     await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
     await state.update_funding("aster", {"BTC": _funding("BTC", 11.0)})
@@ -113,4 +196,61 @@ async def test_find_opportunities_from_state_reads_cached_market_data() -> None:
     assert opportunities[0].symbol == "BTC"
     assert opportunities[0].long_exchange == "hyperliquid"
     assert opportunities[0].short_exchange == "aster"
-    assert opportunities[0].combined_score == 6.0
+    assert opportunities[0].persistence_hours == 1.0
+    assert opportunities[0].funding_edge_bps == 4.93
+    assert opportunities[0].combined_score == 4.93
+
+
+@pytest.mark.asyncio
+async def test_find_opportunities_from_state_skips_stale_symbols() -> None:
+    settings = Settings(
+        min_score_bps=1.0,
+        min_volume_24h=0.0,
+        min_persistence_hours=0.0,
+        hl_fee_per_side=0.0,
+        aster_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.0,
+        stale_data_s=30.0,
+    )
+    state = MarketState()
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("aster", {"BTC": _funding("BTC", 11.0)})
+    await state.update_tickers("hyperliquid", {"BTC": _ticker("BTC", "100")})
+    await state.update_tickers("aster", {"BTC": _ticker("BTC", "100")})
+
+    state._updated_at[StateKey("hyperliquid", "BTC")] = datetime.now(UTC) - timedelta(seconds=31)
+
+    opportunities = find_opportunities_from_state(state, settings)
+
+    assert opportunities == []
+
+
+@pytest.mark.asyncio
+async def test_find_opportunities_from_state_applies_persistence_gate() -> None:
+    settings = Settings(
+        min_score_bps=1.0,
+        min_volume_24h=0.0,
+        min_persistence_hours=2.0,
+        hl_fee_per_side=0.0,
+        aster_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.0,
+    )
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("aster", {"BTC": _funding("BTC", 11.0)})
+    await state.update_tickers("hyperliquid", {"BTC": _ticker("BTC", "100")})
+    await state.update_tickers("aster", {"BTC": _ticker("BTC", "100")})
+
+    assert find_opportunities_from_state(state, settings) == []
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("aster", {"BTC": _funding("BTC", 11.0)})
+
+    opportunities = find_opportunities_from_state(state, settings)
+
+    assert len(opportunities) == 1
+    assert opportunities[0].persistence_hours == 2.0

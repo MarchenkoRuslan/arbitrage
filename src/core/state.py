@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 from datetime import datetime, timezone
 from typing import NamedTuple
 
@@ -13,10 +14,13 @@ class StateKey(NamedTuple):
 class MarketState:
     """In-memory market data cache. Updated by ingestion feeds, read by screener."""
 
-    def __init__(self) -> None:
+    def __init__(self, sample_interval_s: float = 10.0, funding_history_limit: int = 4096) -> None:
         self._funding: dict[StateKey, FundingRate] = {}
+        self._funding_history: dict[StateKey, deque[FundingRate]] = {}
         self._tickers: dict[StateKey, Ticker] = {}
         self._updated_at: dict[StateKey, datetime] = {}
+        self._sample_interval_s = sample_interval_s
+        self._funding_history_limit = funding_history_limit
         self._lock = asyncio.Lock()
 
     async def update_funding(self, exchange: str, rates: dict[str, FundingRate]) -> None:
@@ -25,6 +29,11 @@ class MarketState:
             for symbol, rate in rates.items():
                 key = StateKey(exchange, symbol)
                 self._funding[key] = rate
+                history = self._funding_history.setdefault(
+                    key,
+                    deque(maxlen=self._funding_history_limit),
+                )
+                history.append(rate)
                 self._updated_at[key] = now
 
     async def update_tickers(self, exchange: str, tickers: dict[str, Ticker]) -> None:
@@ -39,6 +48,11 @@ class MarketState:
         async with self._lock:
             key = StateKey(exchange, symbol)
             self._funding[key] = rate
+            history = self._funding_history.setdefault(
+                key,
+                deque(maxlen=self._funding_history_limit),
+            )
+            history.append(rate)
             self._updated_at[key] = datetime.now(timezone.utc)
 
     async def update_single_ticker(self, exchange: str, symbol: str, ticker: Ticker) -> None:
@@ -72,3 +86,17 @@ class MarketState:
             return True
         age = (datetime.now(timezone.utc) - updated).total_seconds()
         return age > max_age_s
+
+    def get_funding_persistence_hours(self, long_exchange: str, short_exchange: str, symbol: str) -> float:
+        long_history = self._funding_history.get(StateKey(long_exchange, symbol))
+        short_history = self._funding_history.get(StateKey(short_exchange, symbol))
+        if not long_history or not short_history:
+            return 0.0
+
+        consecutive_samples = 0
+        for long_rate, short_rate in zip(reversed(long_history), reversed(short_history)):
+            if short_rate.apr <= long_rate.apr:
+                break
+            consecutive_samples += 1
+
+        return consecutive_samples * self._sample_interval_s / 3600

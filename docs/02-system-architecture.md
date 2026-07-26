@@ -57,14 +57,14 @@ class ArbitrageOpportunity:
     long_exchange: str
     short_exchange: str
     funding_diff_apr: Decimal   # Funding rate spread (APR)
-    basis_bps: Decimal          # Price basis
-    combined_score: Decimal     # funding - fee_impact + basis_weight*basis
+    basis_bps: Decimal          # Directional basis, positive when short is richer
+    combined_score: Decimal     # Expected net edge over hold window, in bps
 ```
 
 **Logic:**
 1. Ingestion updates `MarketState` (REST polling now, WS-first later)
 2. For each shared symbol, determine the long/short direction by APR
-3. Calculate basis (price diff) and combined score
+3. Calculate directional basis, expected funding edge, and combined score
 4. Filter by minimum score (persistence gate comes in the next step)
 5. Rank by `combined_score`
 

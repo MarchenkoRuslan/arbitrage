@@ -66,6 +66,7 @@ class AsterConnector:
                 mark_price=Decimal(mark),
                 index_price=Decimal(item.indexPrice) if item.indexPrice else None,
                 volume_24h=float(item.quoteVolume or 0),
+                open_interest=None,
             )
 
         logger.debug("Aster: {} tickers", len(tickers))

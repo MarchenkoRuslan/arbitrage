@@ -9,7 +9,7 @@ System for finding funding rate arbitrage opportunities between Hyperliquid and 
 Current focus: a fast and reliable read-only screener that:
 1. Collects funding and price data from two exchanges
 2. Normalizes rates into APR
-3. Calculates a combined score (funding edge + basis - fee impact)
+3. Calculates a directional edge score over the expected hold window (funding + favorable basis - fee impact)
 4. Prints top opportunities
 
 ## Current Status
@@ -58,10 +58,14 @@ python -m src.main --loop
 
 ## Main Environment Variables
 
-- `ARB_MIN_SCORE_APR` (default: `5.0`)
-- `ARB_FEE_PER_SIDE` (default: `0.05`)
+- `ARB_MIN_SCORE_BPS` (default: `5.0`)
+- `ARB_MIN_VOLUME_24H` (default: `100000.0`)
+- `ARB_MIN_PERSISTENCE_HOURS` (default: `0.0`)
+- `ARB_HL_FEE_PER_SIDE` (default: `0.035`)
+- `ARB_ASTER_FEE_PER_SIDE` (default: `0.05`)
 - `ARB_EXPECTED_HOLD_HOURS` (default: `72.0`)
-- `ARB_BASIS_WEIGHT` (default: `0.1`)
+- `ARB_BASIS_WEIGHT` (default: `0.5`)
+- `ARB_STALE_DATA_S` (default: `30.0`)
 - `ARB_LOOP_INTERVAL_S` (default: `10`)
 
 ## Documentation

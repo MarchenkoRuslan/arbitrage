@@ -62,6 +62,7 @@ class HyperliquidConnector:
                     mark_price=Decimal(ctx.markPx),
                     index_price=Decimal(ctx.oraclePx) if ctx.oraclePx else None,
                     volume_24h=float(ctx.dayNtlVlm or 0),
+                    open_interest=float(ctx.openInterest) if ctx.openInterest is not None else None,
                 )
 
         return rates, tickers

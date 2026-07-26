@@ -19,10 +19,13 @@ Total_Profit = Basis_Convergence + Funding_Income - Fees
 ## Combined Score
 
 ```python
-score = funding_24h - roundtrip_fees + basis_bonus
+score_bps = funding_edge_bps - roundtrip_fees_bps + basis_bonus_bps
 
-basis_bonus = max(0, basis_bps) * 0.5  # 50% realization assumption
+basis_bonus_bps = max(0, directional_basis_bps) * 0.5
+funding_edge_bps = funding_diff_apr * (expected_hold_hours / 8760) * 100
 ```
+
+Directional basis is positive only when the short leg is richer than the long leg.
 
 If basis is negative, check how many funding hours are needed to cover it:
 ```python

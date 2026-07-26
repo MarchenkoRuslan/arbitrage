@@ -15,7 +15,7 @@ class App:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or Settings()
-        self.state = MarketState()
+        self.state = MarketState(sample_interval_s=self.settings.loop_interval_s)
         self.hl = HyperliquidConnector(self.settings)
         self.aster = AsterConnector(self.settings)
 
@@ -48,15 +48,17 @@ class App:
         print_opportunities(opps)
 
         if not opps:
-            logger.info("No opportunities above {:.1f}% APR threshold", self.settings.min_score_apr)
+            logger.info("No opportunities above {:.1f} bps edge threshold", self.settings.min_score_bps)
 
     async def run_loop(self) -> None:
         """Continuous polling loop."""
         logger.info(
-            "Starting screener (interval={}s, hold={}h, min_score={}%)",
+            "Starting screener (interval={}s, hold={}h, min_edge={}bps, min_volume={}, min_persist={}h)",
             self.settings.loop_interval_s,
             self.settings.expected_hold_hours,
-            self.settings.min_score_apr,
+            self.settings.min_score_bps,
+            self.settings.min_volume_24h,
+            self.settings.min_persistence_hours,
         )
         try:
             while True:

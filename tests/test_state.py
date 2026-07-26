@@ -69,3 +69,31 @@ async def test_market_state_is_stale_depends_on_update_age() -> None:
     state._updated_at[StateKey("hyperliquid", "BTC")] = datetime.now(UTC) - timedelta(seconds=31)
 
     assert state.is_stale("hyperliquid", "BTC", max_age_s=30.0) is True
+
+
+@pytest.mark.asyncio
+async def test_market_state_tracks_consecutive_funding_persistence() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
+    await state.update_single_funding("aster", "BTC", _funding("BTC", 11.0))
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 6.0))
+    await state.update_single_funding("aster", "BTC", _funding("BTC", 12.0))
+
+    persistence_hours = state.get_funding_persistence_hours("hyperliquid", "aster", "BTC")
+
+    assert persistence_hours == 2.0
+
+
+@pytest.mark.asyncio
+async def test_market_state_stops_persistence_on_direction_flip() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 5.0))
+    await state.update_single_funding("aster", "BTC", _funding("BTC", 11.0))
+    await state.update_single_funding("hyperliquid", "BTC", _funding("BTC", 14.0))
+    await state.update_single_funding("aster", "BTC", _funding("BTC", 12.0))
+
+    persistence_hours = state.get_funding_persistence_hours("hyperliquid", "aster", "BTC")
+
+    assert persistence_hours == 0.0
