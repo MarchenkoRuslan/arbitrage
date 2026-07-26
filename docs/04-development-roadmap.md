@@ -1,22 +1,22 @@
-# Дорожная карта
+# Development Roadmap
 
 ## Phase 0: Foundation
-**Цель:** Подключиться к Hyperliquid + Aster, получить funding rates
+**Goal:** Connect to Hyperliquid + Aster and retrieve funding rates
 
-- [x] Проект (pyproject.toml, структура, .env)
+- [x] Project scaffold (pyproject.toml, structure, .env)
 - [x] Core models (FundingRate, Ticker)
 - [x] Hyperliquid REST connector
-  - [x] Получить meta (coins, funding rates, mark prices)
-  - [ ] Получить orderbook (l2Book)
-  - [x] Подготовлен WebSocket feed (allMids)
+  - [x] Fetch meta (coins, funding rates, mark prices)
+  - [ ] Fetch order book (l2Book)
+  - [x] Prepare WebSocket feed (allMids)
 - [x] Aster REST connector
-  - [x] Получить funding rates (premiumIndex)
-  - [x] Получить тикеры (ticker/24hr)
-  - [x] Подготовлен WebSocket feed (miniTicker)
-- [x] Маппинг общих символов между HL и Aster
-- [x] Скрипт: вывести таблицу funding diff
+  - [x] Fetch funding rates (premiumIndex)
+  - [x] Fetch tickers (ticker/24hr)
+  - [x] Prepare WebSocket feed (miniTicker)
+- [x] Map shared symbols between HL and Aster
+- [x] Script: print the funding diff table
 
-**Готово когда:** скрипт выводит:
+**Done when:** the script prints:
 ```
 | Symbol | HL Rate (1h) | Aster Rate (8h) | HL APR | Aster APR | Diff APR |
 | ANSEM  | +0.05%       | +0.12%          | 438%   | 131%      | +307%    |
@@ -25,69 +25,69 @@
 ---
 
 ## Phase 1: Screener MVP
-**Цель:** Рабочий скринер Hyperliquid ↔ Aster
+**Goal:** Working Hyperliquid ↔ Aster screener
 
-- [x] Aggregator — периодический сбор rates с обеих бирж
-- [x] Нормализация: HL 1h → APR, Aster 8h → APR
+- [x] Aggregator - periodic collection of rates from both exchanges
+- [x] Normalization: HL 1h -> APR, Aster 8h -> APR
 - [x] Opportunity Finder + combined scoring (basis + funding - fees)
-- [ ] Фильтры: min APR, min volume, persistence gate
-- [x] Basis calculation (price diff между биржами)
-- [x] CLI вывод opportunities
-- [x] Автообновление каждые 5-10 сек
-- [x] In-memory market state для zero-IO hot path
+- [ ] Filters: min APR, min volume, persistence gate
+- [x] Basis calculation (price diff between exchanges)
+- [x] CLI output for opportunities
+- [x] Auto-refresh every 5-10 seconds
+- [x] In-memory market state for a zero-IO hot path
 - [x] Resilient HTTP (retry/backoff/rate-limit handling)
-- [ ] WS ingestion как основной runtime режим
+- [ ] WS ingestion as the primary runtime mode
 
-**Готово когда:** обновляемая таблица top opportunities
+**Done when:** a live-updating top opportunities table is available
 
 ---
 
 ## Phase 2: Notifications + API
-**Цель:** Уведомления и remote доступ
+**Goal:** Notifications and remote access
 
-- [ ] Telegram бот (alerts при APR > threshold)
+- [ ] Telegram bot (alerts when APR > threshold)
 - [ ] FastAPI REST endpoints
-- [ ] WebSocket для real-time
-- [ ] Простой web dashboard
+- [ ] WebSocket for real-time updates
+- [ ] Simple web dashboard
 
 ---
 
 ## Phase 3: Execution
-**Цель:** Открытие/закрытие позиций на HL + Aster
+**Goal:** Open and close positions on HL + Aster
 
 - [ ] EIP-712 signing utility (shared for both venues)
 - [ ] Hyperliquid: place order, cancel, get positions
 - [ ] Aster: place order, cancel, get positions
-- [ ] Параллельное исполнение (asyncio.gather)
+- [ ] Parallel execution (asyncio.gather)
 - [ ] Entry sequencing (hedge first)
-- [ ] Размер в МОНЕТАХ (не USDT!)
+- [ ] Position sizing in COINS (not USDT)
 - [ ] Position state management
-- [ ] Rollback при failure одной ноги
+- [ ] Rollback if one leg fails
 
 ---
 
 ## Phase 4: Risk + Automation
-**Цель:** Защита и автоматизация
+**Goal:** Protection and automation
 
 - [ ] Margin monitoring + alerts
 - [ ] ADL detection
 - [ ] Funding flip detection + auto-close
-- [ ] Auto-entry по правилам
-- [ ] Auto-exit по правилам
+- [ ] Rule-based auto-entry
+- [ ] Rule-based auto-exit
 - [ ] Portfolio limits
 
 ---
 
 ## Phase 5: Advanced
-- [ ] Survival analysis (прогноз длительности окна)
-- [ ] Spot + Futures стратегия
+- [ ] Survival analysis (window duration forecasting)
+- [ ] Spot + Futures strategy
 - [ ] Backtesting
 - [ ] ML predicted rates
 
 ---
 
-## Текущая стадия
+## Current Stage
 
-- Фактическое состояние: поздний Phase 1
-- На проде уже работает: polling-based MVP screener
-- Следующий ключевой шаг: перевести ingestion в WS-first режим и добавить persistence gate
+- Actual state: late Phase 1
+- Already running in production: polling-based MVP screener
+- Next key step: move ingestion to a WS-first mode and add a persistence gate

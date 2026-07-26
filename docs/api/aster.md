@@ -1,46 +1,46 @@
 # Aster API Reference
 
-## Базовая информация
+## Basic Information
 - **Base URL (Futures):** `https://fapi.asterdex.com`
-- **API Version:** V3 (EIP-712) — рекомендуемая; V1 (HMAC) — legacy
+- **API Version:** V3 (EIP-712) is recommended; V1 (HMAC) is legacy
 - **Python SDK:** `pip install aster-connector-python`
 - **GitHub:** github.com/asterdex/api-docs, github.com/asterdex/aster-connector-python
-- **Интерфейс:** Binance-совместимый (те же параметры ордеров)
+- **Interface:** Binance-compatible (same order parameters)
 - **Funding Period:** 8h
 
-## Аутентификация
+## Authentication
 
-### V3 (Recommended) — EIP-712
-- Подпись через EIP-712 typed data (как Hyperliquid)
+### V3 (Recommended) - EIP-712
+- Signature via EIP-712 typed data, similar to Hyperliquid
 - Wallet-based auth
-- Поддержка agent/delegated keys
+- Supports agent/delegated keys
 
-### V1 (Legacy) — HMAC
-- API Key + Secret (как Binance)
-- HMAC-SHA256 подпись
-- С марта 2026 новые V1 ключи не создаются
+### V1 (Legacy) - HMAC
+- API Key + Secret, similar to Binance
+- HMAC-SHA256 signature
+- As of March 2026, new V1 keys are no longer issued
 
 ## Python SDK Usage
 
 ```python
 from aster.rest_api import Client
 
-# Public (без ключей)
+# Public client without keys
 client = Client()
 print(client.time())
 
-# Private (с ключами, V1 legacy)
+# Private client with keys, V1 legacy mode
 client = Client(key='<api_key>', secret='<api_secret>')
 print(client.account())
 
-# Создать ордер
+# Place an order
 params = {
     'symbol': 'BTCUSDT',
     'side': 'SELL',
     'type': 'LIMIT',
     'timeInForce': 'GTC',
     'quantity': 0.002,
-    'price': 59808
+    'price': 59808,
 }
 response = client.new_order(**params)
 ```
@@ -56,67 +56,67 @@ def message_handler(message):
 ws_client = Client()
 ws_client.start()
 
-# Подписка на тикер
+# Subscribe to ticker updates
 ws_client.mini_ticker(symbol='btcusdt', id=1, callback=message_handler)
 
-# Подписка на orderbook
+# Subscribe to order book updates
 ws_client.instant_subscribe(
     stream=['btcusdt@bookTicker', 'ethusdt@bookTicker'],
     callback=message_handler,
 )
 ```
 
-## Ключевые endpoints (Binance-like format)
+## Key Endpoints (Binance-like Format)
 
 ### Market Data (Public)
 ```
 GET /fapi/v1/time                 # Server time
 GET /fapi/v1/ticker/24hr          # 24h tickers
-GET /fapi/v1/depth                # Orderbook
+GET /fapi/v1/depth                # Order book
 GET /fapi/v1/premiumIndex         # Funding rate + mark price
 GET /fapi/v1/fundingRate          # Funding rate history
 ```
 
 ### Account (Private)
 ```
-GET /fapi/v1/account              # Баланс, позиции
-GET /fapi/v1/positionRisk         # Позиции с деталями
-GET /fapi/v1/openOrders           # Открытые ордера
+GET /fapi/v1/account              # Balance, positions
+GET /fapi/v1/positionRisk         # Positions with details
+GET /fapi/v1/openOrders           # Open orders
 ```
 
 ### Trading (Private)
 ```
-POST /fapi/v1/order               # Новый ордер
-DELETE /fapi/v1/order             # Отмена ордера
-GET /fapi/v1/order                # Статус ордера
-POST /fapi/v1/leverage            # Установить leverage
+POST /fapi/v1/order               # New order
+DELETE /fapi/v1/order             # Cancel order
+GET /fapi/v1/order                # Order status
+POST /fapi/v1/leverage            # Set leverage
 POST /fapi/v1/marginType          # Cross/Isolated
 ```
 
-## Формат символов
-- Binance-like: `BTCUSDT`, `ETHUSDT`, `ANSEMUST`, etc.
-- Много мемкоинов (ANSEM, FARTCOIN, etc.)
+## Symbol Format
+- Binance-like: `BTCUSDT`, `ETHUSDT`, `ANSEMUSDT`, etc.
+- Many memecoins are listed, including ANSEM and FARTCOIN
 
-## Особенности
-- Binance-совместимый REST API (параметры, формат ответов)
-- Собственный блокчейн (Aster Chain)
-- V3 auth = EIP-712 (shared signing pattern с Hyperliquid)
-- Много мемкоинов с высоким funding
-- ADL встречается часто на мемкоинах (кейс ANSEM)
-- Testnet доступен
+## Notes
+- Binance-compatible REST API (parameters and response format)
+- Runs on its own chain (Aster Chain)
+- V3 auth uses EIP-712, which aligns with Hyperliquid's signing pattern
+- Many memecoins show elevated funding rates
+- ADL is more common on memecoins, including the ANSEM case
+- Testnet is available
 
-## Комиссии (предположительно)
+## Fees (Estimated)
 - Taker: ~0.05%
 - Maker: ~0.02%
-- Точные данные: проверить через API `/fapi/v1/account` или docs
+- Exact values should be verified through `/fapi/v1/account` or the official docs
 
 ## Rate Limits
-- recvWindow: max 60000 ms, default 5000 ms
-- Weight limits отображаются в response headers
-- Ping каждые 3 мин, pong timeout 10 мин (WS)
+- `recvWindow`: max 60000 ms, default 5000 ms
+- Weight limits are exposed in response headers
+- Ping every 3 minutes, pong timeout 10 minutes (WS)
 
-## Важно для арбитража
-- **Общие пары с Hyperliquid:** BTC, ETH + мемкоины (ANSEM, FARTCOIN, etc.)
-- **Funding 8h vs HL 1h:** Нормализовать к единому APR
-- **ADL risk выше** на мемкоинах
-- **Оба используют EIP-712:** Можно шарить signing utilities
+## Important for Arbitrage
+- **Shared pairs with Hyperliquid:** BTC, ETH, plus memecoins such as ANSEM and FARTCOIN
+- **Funding 8h vs HL 1h:** normalize both to the same APR basis
+- **ADL risk is higher** on memecoins
+- **Both use EIP-712:** signing utilities can be shared

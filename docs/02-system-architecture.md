@@ -1,6 +1,6 @@
-# Архитектура системы
+# System Architecture
 
-## Высокоуровневая схема
+## High-Level Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -31,11 +31,11 @@
 
 ---
 
-## Модули
+## Modules
 
 ### 1. Exchange Connectors
 
-Единый интерфейс для venues (native adapters + protocol).
+Unified interface for venues (native adapters + protocol).
 
 ```python
 class ExchangeConnector(Protocol):
@@ -48,7 +48,7 @@ class ExchangeConnector(Protocol):
 
 ### 2. Screener
 
-Сбор funding rates со всех бирж → поиск пар с максимальной разницей → ранжирование.
+Collect funding rates from all exchanges -> find pairs with the largest spread -> rank them.
 
 ```python
 @dataclass
@@ -56,70 +56,81 @@ class ArbitrageOpportunity:
     symbol: str
     long_exchange: str
     short_exchange: str
-    funding_diff_apr: Decimal   # Разница ставок (APR)
-    basis_bps: Decimal          # Ценовой базис
+    funding_diff_apr: Decimal   # Funding rate spread (APR)
+    basis_bps: Decimal          # Price basis
     combined_score: Decimal     # funding - fee_impact + basis_weight*basis
 ```
 
-**Логика:**
-1. Ingestion обновляет `MarketState` (REST polling, далее WS-first)
-2. Для каждого общего символа найти направление long/short по APR
-3. Рассчитать basis (price diff) и combined score
-4. Отфильтровать: min score (persistence gate в следующем шаге)
-5. Ранжировать по combined_score
+**Logic:**
+1. Ingestion updates `MarketState` (REST polling now, WS-first later)
+2. For each shared symbol, determine the long/short direction by APR
+3. Calculate basis (price diff) and combined score
+4. Filter by minimum score (persistence gate comes in the next step)
+5. Rank by `combined_score`
 
 ### 3. App Orchestrator
 
-- Управляет lifecycle: startup, polling loop, graceful shutdown
-- Обновляет `MarketState`
-- Запускает screener и вывод
+- Manages lifecycle: startup, polling loop, graceful shutdown
+- Updates `MarketState`
+- Runs the screener and output layer
 
 ### 4. Trader (Execution, planned)
 
-Одновременное открытие/закрытие позиций.
+Simultaneous position open/close flow.
 
-**Принципы:**
-- Entry sequencing: hedge-нога первой, exposed — второй
+**Principles:**
+- Entry sequencing: hedge leg first, exposed leg second
 - Maker-first: limit order → wait → fallback to taker
-- Размер в МОНЕТАХ (не USDT)
-- Rollback при неудаче одной ноги
-- Reconciliation при restart
+- Size positions in COINS (not USDT)
+- Roll back if one leg fails
+- Reconcile state after restart
 
 ### 5. Risk/Monitor (planned)
 
-- Margin ratio мониторинг
+- Margin ratio monitoring
 - ADL detection
 - Funding rate change alerts
 - Spread expansion alerts
-- Auto-close при критических событиях
+- Auto-close on critical events
 - Telegram notifications
 
 ---
 
-## Потоки данных
+## Data Flows
 
 ```
-Текущий runtime (polling):
+Current runtime (polling):
   Exchanges → Connectors → MarketState → Screener → CLI
 
-Целевой runtime (WS-first):
+Target runtime (WS-first):
   WS Feeds + REST Snapshot/Recovery → MarketState → Screener → Alerts/API
 
-Открытие позиции:
+Position opening:
   Signal → Risk Check → Size Calc → Parallel Orders → Position Record
 
-Мониторинг (непрерывно):
+Monitoring (continuous):
   Exchanges → Prices/Margin/Funding → Monitor → Alerts/Auto-actions
 
-Закрытие:
+Position closing:
   Signal → Parallel Close → PnL Calc → Record
 ```
 
 ---
 
-## Режимы работы
+## Operating Modes
 
-1. **Screener-only** — показывает возможности, не торгует
+1. **Screener-only** - shows opportunities but does not trade
 2. **Manual** — planned
 3. **Semi-auto** — planned
 4. **Full-auto** — planned
+
+## Validation
+
+- Install dependencies with `python -m pip install -e ".[dev]"`.
+- Run the app with `python -m src.main` or `python -m src.main --loop`.
+- Use `pytest` for tests and `ruff check .` for linting when a task touches Python code.
+
+## Documentation
+
+- Keep README and docs aligned with the current implementation status.
+- Prefer short, concrete explanations over roadmap-style prose.

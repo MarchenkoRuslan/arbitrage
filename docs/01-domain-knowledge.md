@@ -1,172 +1,172 @@
-# Доменные знания: Арбитраж ставок финансирования
+# Domain Knowledge: Funding Rate Arbitrage
 
-## 1. Что такое Funding Rate
+## 1. What Is a Funding Rate
 
-**Funding Rate (ставка финансирования)** — периодический платёж между держателями long и short позиций на perpetual futures контрактах. Механизм привязывает цену фьючерса к спотовой цене.
+**Funding Rate** is a periodic payment between holders of long and short positions on perpetual futures contracts. The mechanism keeps the futures price anchored to the spot price.
 
-### Механика выплат
-- **Положительный funding** → лонги платят шортам
-- **Отрицательный funding** → шорты платят лонгам
-- **Период выплат:** каждые 1ч / 4ч / 8ч (зависит от биржи)
-- **Формула выплаты:** `Payment = Position_Size × Funding_Rate`
+### Payment Mechanics
+- **Positive funding** -> longs pay shorts
+- **Negative funding** -> shorts pay longs
+- **Payment interval:** every 1h / 4h / 8h depending on the exchange
+- **Payment formula:** `Payment = Position_Size * Funding_Rate`
 
-### Почему возникают различия между биржами
-- Разный состав трейдеров (retail vs institutional)
-- Разная ликвидность и open interest
-- Разные формулы расчёта funding rate
-- Разное время выплат (не синхронизировано)
-- Новые листинги привлекают спекулянтов
+### Why Differences Appear Across Exchanges
+- Different trader mix (retail vs institutional)
+- Different liquidity and open interest
+- Different funding rate formulas
+- Different settlement timing (not synchronized)
+- New listings attract speculative flow
 
 ---
 
-## 2. Стратегии арбитража фандинга
+## 2. Funding Arbitrage Strategies
 
-### 2.1 Futures + Futures (основная)
+### 2.1 Futures + Futures (Primary)
 
-Открываем противоположные позиции на двух биржах на одном и том же активе.
+Open opposite positions on two exchanges for the same asset.
 
 ```
-Пример:
-- Биржа A: FARTCOIN/USDT Short (funding +0.01%/1h → мы получаем)
-- Биржа B: FARTCOIN/USDT Long  (funding -0.001%/4h → мы получаем)
+Example:
+- Exchange A: FARTCOIN/USDT Short (funding +0.01%/1h -> we receive)
+- Exchange B: FARTCOIN/USDT Long  (funding -0.001%/4h -> we receive)
 
-Результат: позиции хеджированы по цене, мы зарабатываем на funding с обеих сторон
+Result: positions are price-hedged, and we earn funding on both sides
 ```
 
-**Условие входа:** Разница funding rate между биржами > суммарные комиссии (вход + выход)
+**Entry condition:** funding rate difference between exchanges is greater than total fees (entry + exit)
 
-**Ключевой принцип:** Позиции открываются **равными в количестве монет**, НЕ в долларах.
+**Key principle:** positions are opened **with equal coin quantity**, not equal dollar notional.
 
 ### 2.2 Spot + Futures
 
-Покупка актива на споте + открытие Short на фьючерсах при положительном funding.
+Buy the asset on spot and open a short on futures when funding is positive.
 
 ```
-Пример:
-- Биржа A (спот): Buy 1 ETH @ $3000
-- Биржа B (futures): Short 1 ETH @ $3010 (funding +0.03%/8h)
+Example:
+- Exchange A (spot): Buy 1 ETH @ $3000
+- Exchange B (futures): Short 1 ETH @ $3010 (funding +0.03%/8h)
 
-Результат: 
-- На споте funding = 0 (не платим/не получаем)
-- На фьючерсах получаем funding каждые 8 часов
-- Цена захеджирована
+Result:
+- Spot funding = 0
+- Futures leg receives funding every 8 hours
+- Price exposure is hedged
 ```
 
-**Плюсы:** нет риска ликвидации спотовой позиции
-**Минусы:** капитал заморожен на споте без leverage
+**Pros:** no liquidation risk on the spot leg
+**Cons:** capital is locked on spot without leverage
 
 ### 2.3 Basis + Funding Combined
 
-Заработок на сближении цен между биржами плюс получение funding.
+Earn from price convergence between exchanges while also receiving funding.
 
 ```
-Пример (UMA):
+Example (UMA):
 - Hyperliquid: Long @ $0.3901
 - Aster: Short @ $0.3932
-- Базис: +80.5 bps (short exchange дороже = в нашу пользу)
+- Basis: +80.5 bps (short exchange is richer, which helps us)
 - Funding APR: 67%
-- Комиссии: ~21 bps
+- Fees: ~21 bps
 
-Профит: basis convergence (+59.5 bps) + funding (18.4 bps/day)
+Profit: basis convergence (+59.5 bps) + funding (18.4 bps/day)
 ```
 
-**Синергия:** В момент funding settlement цена прижимается к споту, ускоряя схождение базиса.
+**Synergy:** around funding settlement, prices often compress toward spot, which can accelerate basis convergence.
 
 ---
 
-## 3. Экономика сделки
+## 3. Trade Economics
 
-### 3.1 Combined Score (формула ранжирования)
+### 3.1 Combined Score (Ranking Formula)
 
 ```
-combined_score = funding_за_24ч - комиссии_roundtrip + бонус_базис
+combined_score = funding_24h - roundtrip_fees + basis_bonus
 
-Где:
-- funding_за_24ч = (funding_rate_diff × periods_per_day) в bps
-- комиссии = (taker_fee_A + taker_fee_B) × 2  (вход + выход)
-- бонус_базис = max(0, basis_bps) × 0.5  (50% вероятность реализации)
+Where:
+- funding_24h = funding_rate_diff * periods_per_day in bps
+- roundtrip_fees = (taker_fee_A + taker_fee_B) * 2  (entry + exit)
+- basis_bonus = max(0, basis_bps) * 0.5  (50% realization assumption)
 ```
 
-### 3.2 Минимальный порог входа
+### 3.2 Minimum Entry Threshold
 
 ```
 Min_Funding_Income > Total_Fees
 
-Типичные taker fees: 0.04% - 0.075%
-Roundtrip (вход+выход обе биржи): 0.16% - 0.30%
+Typical taker fees: 0.04% - 0.075%
+Roundtrip (entry + exit on both exchanges): 0.16% - 0.30%
 
 min_profitable_hours = roundtrip_cost / hourly_funding_income
 ```
 
-### 3.3 Годовая доходность (APR)
+### 3.3 Annualized Return (APR)
 
 ```
-APR = funding_rate_diff × periods_per_year × 100%
+APR = funding_rate_diff * periods_per_year * 100%
 
-Пример: 0.01% за 8h → 0.01% × 1095 = 10.95% APR
-С leverage 5x: ~54.75% APR (минус комиссии)
+Example: 0.01% for 8h -> 0.01% * 1095 = 10.95% APR
+With 5x leverage: about 54.75% APR before fees
 ```
 
 ---
 
-## 4. Риски
+## 4. Risks
 
-| Риск | Описание | Митигация |
-|------|----------|-----------|
-| ADL | Биржа закрывает прибыльную позицию → breaks hedge | Мониторинг ADL indicator, isolated margin |
-| Ликвидация | Резкое движение цены → одна нога ликвидирована | Низкое плечо (3-5x), margin alerts |
-| Funding flip | Rate меняет знак → платим вместо получения | Мониторинг predicted rate, auto-close |
-| Price deviation | Цены на биржах расходятся > 1% | Ребалансировка, margin buffer |
-| Slippage | Мало ликвидности → дорогой вход/выход | Проверка orderbook depth |
-| Exchange risk | Заморозка торгов, делистинг | Диверсификация бирж |
+| Risk | Description | Mitigation |
+|------|-------------|------------|
+| ADL | The exchange closes a profitable position -> hedge breaks | Monitor ADL indicator, use isolated margin |
+| Liquidation | Sharp price move -> one leg is liquidated | Low leverage (3-5x), margin alerts |
+| Funding flip | The rate changes sign -> you pay instead of receive | Monitor predicted rate, auto-close |
+| Price deviation | Prices diverge by more than 1% across exchanges | Rebalancing, margin buffer |
+| Slippage | Low liquidity -> expensive entry/exit | Check order book depth |
+| Exchange risk | Trading freeze, delisting | Diversify across exchanges |
 
-### Кейс ANSEM (реальный)
-- Spot MEXC + Short Aster, funding ~5% за 10 дней (182% APR)
-- Ночью ANSEM -30-40% → шорт закрыт по ADL @ $0.22
-- Повезло: спот продан @ $0.27 → +$4k
-- Могло быть наоборот: если спот упал бы ниже $0.22 → убыток
+### ANSEM Case (Real)
+- Spot on MEXC + Short on Aster, funding about 5% over 10 days (182% APR)
+- Overnight ANSEM drops 30-40% -> short closed by ADL @ $0.22
+- Lucky outcome: spot sold @ $0.27 -> +$4k
+- Alternative outcome: if spot had dropped below $0.22 -> loss
 
 ---
 
-## 5. Ключевые метрики скринера
+## 5. Key Screener Metrics
 
-| Метрика | Описание |
-|---------|----------|
-| Funding Rate | Текущая ставка на каждой бирже |
-| Funding Diff | Разница между биржами |
-| APR | Годовая доходность |
-| Basis (bps) | Разница цен между биржами |
+| Metric | Description |
+|--------|-------------|
+| Funding Rate | Current rate on each exchange |
+| Funding Diff | Difference between exchanges |
+| APR | Annualized return |
+| Basis (bps) | Price difference between exchanges |
 | Combined Score | funding + basis - fees |
-| Volume 24h | Торговый объём |
-| Open Interest | Открытые позиции |
-| Persistence | Сколько часов rate держится |
-| Min Profitable Hours | Минимум для выхода в плюс |
+| Volume 24h | Trading volume |
+| Open Interest | Open positions |
+| Persistence | How many hours the rate holds |
+| Min Profitable Hours | Minimum time required to reach profitability |
 
 ---
 
-## 6. Временные интервалы funding по биржам
+## 6. Funding Intervals by Exchange
 
-| Биржа | Период | Особенности |
-|-------|--------|-------------|
-| Binance | 8h | Стандартный |
-| Bybit | 8h | Стандартный |
-| OKX | 8h | Стандартный |
-| Hyperliquid | 1h | Частые выплаты |
-| dYdX | 1h | Частые выплаты |
-| Bitget | 8h | Стандартный |
-| Gate.io | 8h | Стандартный |
-| Aster | 8h | Много мемкоинов |
+| Exchange | Period | Notes |
+|----------|--------|-------|
+| Binance | 8h | Standard |
+| Bybit | 8h | Standard |
+| OKX | 8h | Standard |
+| Hyperliquid | 1h | Frequent settlements |
+| dYdX | 1h | Frequent settlements |
+| Bitget | 8h | Standard |
+| Gate.io | 8h | Standard |
+| Aster | 8h | Heavy memecoin coverage |
 
 ---
 
-## 7. Терминология
+## 7. Terminology
 
-- **Perpetual Futures (Perps)** — бессрочные фьючерсы без экспирации
-- **Funding Rate** — периодическая плата между long/short
-- **Mark Price** — справедливая цена для расчёта PnL и ликвидации
-- **Basis** — разница цен одного актива на разных биржах
-- **ADL (Auto-Deleveraging)** — принудительное закрытие прибыльных позиций
-- **Delta-Neutral** — позиция хеджирована, не зависит от направления цены
-- **Persistence Gate** — требование чтобы rate держался N часов перед входом
-- **Roundtrip Cost** — суммарные комиссии входа и выхода на обеих биржах
-- **Dollar-Seconds** — интеграл exposure по времени (мера риска)
+- **Perpetual Futures (Perps)** - perpetual contracts with no expiry
+- **Funding Rate** - periodic payment between long and short holders
+- **Mark Price** - fair price used for PnL and liquidation calculations
+- **Basis** - price difference for the same asset across different exchanges
+- **ADL (Auto-Deleveraging)** - forced closure of profitable positions
+- **Delta-Neutral** - hedged position with no directional exposure
+- **Persistence Gate** - requirement that a rate holds for N hours before entry
+- **Roundtrip Cost** - total entry and exit fees across both exchanges
+- **Dollar-Seconds** - time-integrated exposure, used as a risk measure

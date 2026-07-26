@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/MarchenkoRuslan/arbitrage/blob/main/README.md
+    about: Start with the README and docs before opening a new issue.

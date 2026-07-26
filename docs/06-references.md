@@ -1,40 +1,40 @@
-# Референсы и источники
+# References and Sources
 
-## Скринеры (конкуренты)
+## Screeners (Competitors)
 
-| Сервис | URL | Особенности |
+| Service | URL | Notes |
 |--------|-----|-------------|
-| ArbitrageScanner | arbitragescanner.io/funding-rates | Платный, обучение |
-| VOOI Ultra | ultra.vooi.io | DEX агрегатор + арбитраж |
-| Coinglass | coinglass.com/ArbitrageList | Бесплатный |
-| FundingView | fundingview.app/strategy | Стратегии |
+| ArbitrageScanner | arbitragescanner.io/funding-rates | Paid, includes educational content |
+| VOOI Ultra | ultra.vooi.io | DEX aggregator + arbitrage |
+| Coinglass | coinglass.com/ArbitrageList | Free |
+| FundingView | fundingview.app/strategy | Strategy-focused |
 | Loris Tools | loris.tools | Funding + OI |
 
-## Open-source проекты (изученные)
+## Open-Source Projects Reviewed
 
-| Проект | Фокус | Ключевая идея |
+| Project | Focus | Key Idea |
 |--------|-------|---------------|
 | ALLmightyn/FundingArbitrageBot | HL↔Lighter | Entry sequencing, persistence gate, anti-churn |
 | rhwhdgks/funding-arb-engine | Binance↔OKX | Maker first-leg, recovery paths, ops console |
 | velo-coder/crypto-trading-bot | 12 exchanges | Full-stack FastAPI + Next.js, ccxt |
 | pa111111/funding-scout-oss | DEX screener | EV calculator, Kaplan-Meier survival |
 
-## Паттерны из проектов (берём)
+## Patterns Worth Adopting
 
 1. **Entry sequencing** — hedge first, exposed second
-2. **Maker-first** — limit → wait → taker fallback (экономия 0.02-0.04% на ногу)
-3. **Persistence gate** — не входить если rate держится < 6h
-4. **Round-trip cost model** — точный расчёт min_profitable_hours
-5. **Reconciliation** — сверка с биржей при restart
+2. **Maker-first** — limit → wait → taker fallback (saves roughly 0.02-0.04% per leg)
+3. **Persistence gate** — do not enter if the rate holds for less than 6h
+4. **Round-trip cost model** — accurate calculation of `min_profitable_hours`
+5. **Reconciliation** — sync with the exchange after restart
 6. **Combined score** — basis + funding - fees
-7. **Anti-churn** — не flipping'ать позицию каждые 2 часа
+7. **Anti-churn** — avoid flipping a position every 2 hours
 
-## Типичные параметры хорошей opportunity
+## Typical Parameters for a Good Opportunity
 
-| Параметр | Minimum | Good | Excellent |
+| Parameter | Minimum | Good | Excellent |
 |----------|---------|------|-----------|
 | Funding diff (APR) | > 10% | > 30% | > 100% |
 | Volume 24h | > $1M | > $5M | > $20M |
 | Open Interest | > $500K | > $2M | > $10M |
-| Spread (стакан) | < 0.5% | < 0.2% | < 0.1% |
+| Spread (order book) | < 0.5% | < 0.2% | < 0.1% |
 | Persistence | > 6h | > 24h | > 72h |

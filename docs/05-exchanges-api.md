@@ -1,60 +1,60 @@
-# Биржи и API
+# Exchanges and APIs
 
-## Фокус: DEX-first
+## Focus: DEX-first
 
-Стратегия начинается с DEX (Hyperliquid, Aster) — наименьшие комиссии, 1h funding, нет KYC.
-CEX добавляются позже как дополнительные venues.
+The strategy starts with DEX venues (Hyperliquid, Aster) because they offer the lowest fees, 1h funding, and no KYC.
+CEX venues are added later as additional options.
 
-## Целевые биржи (v1 — DEX only)
+## Target Exchanges (v1 - DEX only)
 
-| Биржа | Funding Period | Тип | Приоритет | Статус |
+| Exchange | Funding Period | Type | Priority | Status |
 |-------|---------------|-----|-----------|--------|
-| Hyperliquid | 1h | DEX | **P0** | Основная |
-| Aster | 8h | DEX/CEX | **P0** | Вторая нога |
+| Hyperliquid | 1h | DEX | **P0** | Primary |
+| Aster | 8h | DEX/CEX | **P0** | Second leg |
 
-## Расширение (v2+)
+## Expansion (v2+)
 
-| Биржа | Funding Period | Тип | Приоритет |
+| Exchange | Funding Period | Type | Priority |
 |-------|---------------|-----|-----------|
 | Lighter | varies | DEX | P1 |
 | dYdX v4 | 1h | DEX | P2 |
 | Bybit | 8h | CEX | P2 |
 | Binance | 8h | CEX | P3 |
 
-## Ключевые endpoints
+## Key Endpoints
 
-### Hyperliquid (подробнее: [docs/api/hyperliquid.md](api/hyperliquid.md))
+### Hyperliquid (details: [docs/api/hyperliquid.md](api/hyperliquid.md))
 ```
 POST /info {"type": "metaAndAssetCtxs"}    # Funding rates + market info  
-POST /info {"type": "allMids"}             # Все мид-цены
-POST /info {"type": "l2Book", "coin": X}   # Orderbook
-POST /info {"type": "clearinghouseState"}  # Позиции + баланс
+POST /info {"type": "allMids"}             # All mid prices
+POST /info {"type": "l2Book", "coin": X}   # Order book
+POST /info {"type": "clearinghouseState"}  # Positions + balance
 POST /exchange {"action": {"type": "order"}}  # Trading (signed)
 WS: allMids, l2Book, userFills, userFundings
 ```
 
-### Aster (подробнее: [docs/api/aster.md](api/aster.md))
+### Aster (details: [docs/api/aster.md](api/aster.md))
 ```
 Base URL: https://fapi.asterdex.com
-Auth: V3 (EIP-712, рекомендуемый) или V1 (HMAC, legacy)
-Интерфейс: Binance-совместимый (символы BTCUSDT, стандартные params)
+Auth: V3 (EIP-712, recommended) or V1 (HMAC, legacy)
+Interface: Binance-compatible (BTCUSDT symbols, standard params)
 
 GET /fapi/v1/premiumIndex         # Funding rate + mark price
-GET /fapi/v1/fundingRate          # История funding
-POST /fapi/v1/order               # Ордер
+GET /fapi/v1/fundingRate          # Funding history
+POST /fapi/v1/order               # Order
 WS: <symbol>@bookTicker, mini_ticker
 ```
 
-## Нормализация
+## Normalization
 
-### Periods → APR
+### Periods -> APR
 ```python
 def normalize_to_annual(rate: Decimal, period_hours: int) -> Decimal:
     periods_per_year = Decimal(8760) / Decimal(period_hours)
     return rate * periods_per_year * Decimal(100)
 
-# Hyperliquid: 0.003% за 1h → 26.28% APR
-# Aster: 0.01% за 8h → 10.95% APR
+# Hyperliquid: 0.003% for 1h -> 26.28% APR
+# Aster: 0.01% for 8h -> 10.95% APR
 ```
 
 ### Symbols
@@ -69,9 +69,9 @@ SYMBOL_MAP = {
 }
 ```
 
-## Общая архитектура подключения
+## Shared Connectivity Architecture
 
-Оба venue используют EIP-712 signing → общий signing utility:
+Both venues use EIP-712 signing -> a shared signing utility makes sense:
 ```python
 # Shared pattern:
 # 1. Construct typed data payload
@@ -82,26 +82,26 @@ SYMBOL_MAP = {
 # Aster V3: Similar EIP-712 pattern
 ```
 
-## Аутентификация
+## Authentication
 
-- **Hyperliquid (DEX):** EIP-712 typed data подпись. API Wallet (approveAgent) для delegated trading.
-- **Aster V3 (DEX):** EIP-712 typed data подпись (аналогично HL). Поддержка agent keys.
-- **Aster V1 (legacy):** API Key + HMAC-SHA256 (Binance-like). Новые ключи не создаются с марта 2026.
-- **CEX (будущее):** API Key + Secret. Права: Read + Trade. НЕ давать Withdraw.
+- **Hyperliquid (DEX):** EIP-712 typed data signature. API Wallet (`approveAgent`) for delegated trading.
+- **Aster V3 (DEX):** EIP-712 typed data signature (similar to HL). Supports agent keys.
+- **Aster V1 (legacy):** API Key + HMAC-SHA256 (Binance-like). New keys are no longer created as of March 2026.
+- **CEX (future):** API Key + Secret. Permissions: Read + Trade. Never grant Withdraw.
 
 ## Python SDK dependencies
 
 ```
-# Текущий код (Phase 1)
+# Current code (Phase 1)
 httpx                      # REST connectors
 websockets                 # WS feeds
 pydantic                   # response validation schemas
 
-# Дальше (Phase 3, execution)
+# Later (Phase 3, execution)
 eth-account                # EIP-712 signing (V3)
 ```
 
-Примечание:
+Note:
 
-- На текущей стадии используется `httpx` с собственными адаптерами.
-- Официальные SDK можно подключить позже, если они дадут преимущество в execution-части.
+- At the current stage, the project uses `httpx` with custom adapters.
+- Official SDKs can be adopted later if they provide an execution-side advantage.

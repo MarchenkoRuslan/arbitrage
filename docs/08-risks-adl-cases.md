@@ -1,63 +1,63 @@
-# Риски: ADL и реальные кейсы
+# Risks: ADL and Real Cases
 
 ## ADL (Auto-Deleveraging)
 
-Биржа автоматически закрывает прибыльные позиции при каскаде ликвидаций. Ломает хедж.
+The exchange can automatically close a profitable position during a liquidation cascade. That breaks the hedge.
 
 ```
-ДО ADL:  Long (спот/перп) + Short (перп) = delta neutral ✓
-ПОСЛЕ:   Long остался, Short закрыт = directional risk!
+BEFORE ADL: Long (spot/perp) + Short (perp) = delta neutral
+AFTER ADL:  Long remains, Short is closed = directional risk
 ```
 
-### Кейс ANSEM
+### ANSEM Case
 ```
-Позиция: Spot MEXC + Short Aster
-Funding: ~5% за 10 дней (182% APR)
-Событие: мем-сезон Robinhood chain → ANSEM -30-40%
-ADL: шорт закрыт @ $0.22
-Утро: спот продан @ $0.27 → +$4k (повезло)
-Альтернатива: спот мог упасть до $0.15 → убыток
+Position: Spot on MEXC + Short on Aster
+Funding: ~5% over 10 days (182% APR)
+Event: Robinhood chain meme season -> ANSEM drops 30-40%
+ADL: short closed @ $0.22
+Next morning: spot sold @ $0.27 -> +$4k (lucky outcome)
+Alternative path: spot could have dropped to $0.15 -> loss
 ```
 
-### Митигация ADL
-- Мониторить ADL indicator (4-5 ламп → предупреждение)
-- Isolated margin (ограничить убыток)
-- Не ставить весь капитал в одну пару
-- При ADL event → немедленно решить: закрыть вторую ногу или держать
+### ADL Mitigation
+- Monitor the ADL indicator (4-5 lights -> warning)
+- Use isolated margin to limit damage
+- Do not allocate all capital to one pair
+- After an ADL event, immediately decide whether to close the second leg or hold it
 
-## Другие риски
+## Other Risks
 
 ### Funding Flip
 ```
-Rate резко меняет знак → из получателя в плательщика.
-Защита: мониторинг predicted rate, auto-close при смене знака.
+The rate changes sign sharply -> you switch from receiving funding to paying it.
+Protection: monitor the predicted rate and auto-close when the sign flips.
 ```
 
 ### Exchange Price Deviation
 ```
-Нормально: 0.1-0.3% расхождение
-Опасно: >1% (одна нога в убытке)
-Критично: >3% (угроза ликвидации)
-Защита: margin buffer >2x, alerts, ребалансировка
+Normal: 0.1-0.3% divergence
+Dangerous: >1% (one leg is deeply underwater)
+Critical: >3% (liquidation threat)
+Protection: margin buffer >2x, alerts, rebalancing
 ```
 
-### Мемкоины
+### Memecoins
 ```
-- Pump/dump 30-100% за минуты
-- ADL вероятность НАМНОГО выше
-- Рекомендация: max 10-20% портфеля
+- Pump/dump moves of 30-100% within minutes
+- ADL probability is much higher
+- Recommendation: cap at 10-20% of portfolio exposure
 ```
 
 ## Risk Limits
 
 ```yaml
 # Per-position
-max_position_pct: 20%       # Не более 20% в одну пару
+max_position_pct: 20%       # No more than 20% in one pair
 max_leverage: 5
 margin_alert: 15%
 margin_force_close: 8%
 
-# Portfolio  
+# Portfolio
 max_positions: 10
 max_meme_pct: 20%
 max_single_exchange_pct: 40%
@@ -72,12 +72,12 @@ max_adl_quantile: 3
 
 ## Recovery
 
-### После ADL
-1. Detect: позиция закрыта не нами
-2. Alert: Telegram CRITICAL
-3. Decide: закрыть вторую ногу (safe) или trailing stop (risky)
+### After ADL
+1. Detect: the position was closed by the exchange, not by us.
+2. Alert: send a critical Telegram notification.
+3. Decide: close the second leg safely or manage it with a trailing stop.
 
-### Failure одной ноги при открытии
-1. Long открыт, Short failed → retry 2-3 раза
-2. Всё ещё failed → закрыть Long (rollback)
-3. Slippage от rollback = стоимость ошибки
+### One-Leg Failure During Entry
+1. Long opened, short failed -> retry 2-3 times.
+2. If it still fails -> close the long leg (rollback).
+3. Rollback slippage is the direct cost of the failure.

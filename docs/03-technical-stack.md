@@ -1,43 +1,43 @@
-# Технический стек
+# Technical Stack
 
 ## Core
 
-| Компонент | Выбор | Зачем |
+| Component | Choice | Why |
 |-----------|-------|-------|
-| Язык | Python 3.12+ | Экосистема, быстрая разработка |
-| Async | asyncio | Параллельные IO задачи |
-| HTTP | httpx | Асинхронные REST запросы |
-| WS | websockets | Потоковые real-time обновления |
-| Types | Pydantic | Валидация, schemas |
-| Settings | pydantic-settings | Конфиг из env |
-| Logging | loguru | Структурированное логирование |
-| Numbers | Decimal | Точная арифметика цен и ставок |
+| Language | Python 3.12+ | Ecosystem and fast development |
+| Async | asyncio | Parallel IO workloads |
+| HTTP | httpx | Async REST requests |
+| WS | websockets | Streaming real-time updates |
+| Types | Pydantic | Validation and schemas |
+| Settings | pydantic-settings | Env-based configuration |
+| Logging | loguru | Structured logging |
+| Numbers | Decimal | Precise arithmetic for prices and rates |
 
-## Инфраструктура
+## Infrastructure
 
-| Компонент | Выбор | Зачем |
+| Component | Choice | Why |
 |-----------|-------|-------|
-| Runtime | In-memory state | Минимальная latency hot path |
-| Resilience | Retry/backoff HTTP client | Стабильность при сетевых сбоях |
-| Package | pyproject + editable install | Простой dev workflow |
-| Tests | pytest + pytest-asyncio | Проверка async логики |
+| Runtime | In-memory state | Minimal hot-path latency |
+| Resilience | Retry/backoff HTTP client | Stability during network failures |
+| Package | pyproject + editable install | Simple development workflow |
+| Tests | pytest + pytest-asyncio | Validation for async logic |
 
-## Почему такой минимум на старте
+## Why Start This Lean
 
-- Сначала нужен рабочий и проверяемый скринер, а не полный торговый комбайн
-- Минимальная архитектура уже учитывает масштабирование: state cache, DI, протоколы, WS модули
-- Холодный путь может делать IO, горячий путь скринера работает по данным из памяти
+- The first requirement is a working and testable screener, not a full trading platform
+- The minimal architecture already leaves room for scaling: state cache, DI, protocols, WS modules
+- The cold path can perform IO while the hot screener path runs from in-memory data
 
-## Структура кода
+## Code Structure
 
 ```
 src/
 ├── core/
-│   ├── app.py             # Оркестратор приложения
-│   ├── config.py          # Конфигурация (env)
-│   ├── http.py            # Retry/backoff HTTP клиент
+│   ├── app.py             # Application orchestrator
+│   ├── config.py          # Environment configuration
+│   ├── http.py            # Retry/backoff HTTP client
 │   ├── models.py          # Pydantic models
-│   ├── normalize.py       # APR и symbol normalization
+│   ├── normalize.py       # APR and symbol normalization
 │   └── state.py           # Shared market state cache
 ├── exchanges/
 │   ├── base.py            # Connector protocol
@@ -47,13 +47,13 @@ src/
 │   ├── aster.py           # REST connector
 │   └── aster_ws.py        # WS feed (prepared)
 ├── output/
-│   └── console.py         # Табличный вывод
+│   └── console.py         # Tabular console output
 ├── screener/
-│   └── finder.py          # Поиск и scoring opportunities
+│   └── finder.py          # Opportunity search and scoring
 └── main.py
 ```
 
-## Текущие зависимости
+## Current Dependencies
 
 - `httpx`
 - `pydantic`

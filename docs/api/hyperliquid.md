@@ -1,93 +1,119 @@
 # Hyperliquid API Reference
 
-## Базовый URL
+## Base URL
 - Mainnet: `https://api.hyperliquid.xyz`
 - Info endpoint: `POST /info`
 - Exchange endpoint: `POST /exchange`
 - WebSocket: `wss://api.hyperliquid.xyz/ws`
 
-## Funding Rate: 1 час
+## Funding Rate: 1 hour
 
-## Аутентификация
-- Каждый trade action подписывается приватным ключом (EIP-712 typed data)
-- Nonce = текущий timestamp в миллисекундах
-- API Wallet (Agent): `approveAgent` — delegated key для торговли без master key
+## Authentication
+- Each trade action is signed with a private key (EIP-712 typed data)
+- Nonce = current timestamp in milliseconds
+- API Wallet (Agent): `approveAgent` - delegated key for trading without the master key
 
-## Ключевые endpoints
+## Key Endpoints
 
-### Info (read-only, без подписи)
+### Info (read-only, unsigned)
 
-| Запрос | type | Что возвращает |
+| Request | type | Returns |
 |--------|------|---------------|
-| Все мид-цены | `allMids` | `{"BTC": "64500.0", "ETH": "3400.0", ...}` |
-| Orderbook | `l2Book` | До 20 уровней bids/asks |
-| Позиции | `clearinghouseState` | Позиции, маржа, PnL |
-| Открытые ордера | `openOrders` | Все активные ордера |
-| Заполнения | `userFills` | До 2000 fills |
-| Статус ордера | `orderStatus` | По oid или cloid |
-| Комиссии | `userFees` | Текущие тиры, ставки |
-| Rate limits | `userRateLimit` | Использованные/доступные запросы |
+| All mid prices | `allMids` | `{"BTC": "64500.0", "ETH": "3400.0", ...}` |
+| Order book | `l2Book` | Up to 20 bid/ask levels |
+| Positions | `clearinghouseState` | Positions, margin, PnL |
+| Open orders | `openOrders` | All active orders |
+| Fills | `userFills` | Up to 2000 fills |
+# Hyperliquid API Reference
+
+## Base URL
+- Mainnet: `https://api.hyperliquid.xyz`
+- Info endpoint: `POST /info`
+- Exchange endpoint: `POST /exchange`
+- WebSocket: `wss://api.hyperliquid.xyz/ws`
+
+## Funding Rate: 1 Hour
+
+## Authentication
+- Each trade action is signed with a private key using EIP-712 typed data
+- `nonce` is the current timestamp in milliseconds
+- API Wallet (Agent): `approveAgent` provides a delegated key for trading without the master key
+
+## Key Endpoints
+
+### Info (Read-Only, Unsigned)
+
+| Request | type | Returns |
+|--------|------|---------|
+| All mid prices | `allMids` | `{"BTC": "64500.0", "ETH": "3400.0", ...}` |
+| Order book | `l2Book` | Up to 20 bid/ask levels |
+| Positions | `clearinghouseState` | Positions, margin, PnL |
+| Open orders | `openOrders` | All active orders |
+| Fills | `userFills` | Up to 2000 fills |
+| Order status | `orderStatus` | By oid or cloid |
+| Fees | `userFees` | Current tiers and rates |
+| Rate limits | `userRateLimit` | Used and available request budget |
 | Meta (instruments) | `meta` | Universe, funding rates, OI, mark prices |
 
-### Получение funding rates
+### Fetching Funding Rates
 ```python
 # POST /info
 {"type": "metaAndAssetCtxs"}
 
-# Response включает для каждого asset:
-# - funding: текущая ставка (выплата за 1 час)
+# Response includes for each asset:
+# - funding: current rate (payment for 1 hour)
 # - openInterest
 # - markPx, oraclePx
-# - prevDayPx (для расчёта 24h change)
+# - prevDayPx (for calculating 24h change)
 ```
 
-### Exchange (требует подпись)
+### Exchange (Requires Signature)
 
-| Действие | type | Описание |
-|----------|------|----------|
-| Ордер | `order` | Limit/IOC/ALO + trigger (TP/SL) |
-| Отмена | `cancel` | По oid |
-| Отмена по cloid | `cancelByCloid` | По client order ID |
-| Модификация | `modify` | Изменить цену/размер |
-| Leverage | `updateLeverage` | Установить плечо |
-| Margin | `updateIsolatedMargin` | Добавить/убрать маржу |
+| Action | type | Description |
+|--------|------|-------------|
+| Order | `order` | Limit/IOC/ALO + trigger (TP/SL) |
+| Cancel | `cancel` | By oid |
+| Cancel by cloid | `cancelByCloid` | By client order ID |
+| Modify | `modify` | Change price/size |
+| Leverage | `updateLeverage` | Set leverage |
+| Margin | `updateIsolatedMargin` | Add or remove margin |
 
-### Формат ордера
+### Order Format
 ```python
 {
     "action": {
         "type": "order",
         "orders": [{
-            "a": 0,          # asset index (0=BTC, 1=ETH, ...)
-            "b": True,        # isBuy
+            "a": 0,            # asset index (0=BTC, 1=ETH, ...)
+            "b": True,         # isBuy
             "p": "64500.0",   # price
             "s": "0.01",      # size
-            "r": False,       # reduceOnly
-            "t": {"limit": {"tif": "Gtc"}}  # Gtc/Ioc/Alo
+            "r": False,        # reduceOnly
+            "t": {"limit": {"tif": "Gtc"}},  # Gtc/Ioc/Alo
         }],
-        "grouping": "na"
+        "grouping": "na",
     },
-    "nonce": 1690000000000,  # timestamp ms
-    "signature": {...}        # EIP-712
+    "nonce": 1690000000000,    # timestamp ms
+    "signature": {...},        # EIP-712
 }
 ```
 
-### Order types (TIF)
-- **GTC** — Good Til Canceled (обычный limit)
-- **IOC** — Immediate Or Cancel (аналог market с price limit)
-- **ALO** — Add Liquidity Only (post-only, maker only)
+### Order Types (TIF)
+- **GTC** - Good Til Canceled (standard limit)
+- **IOC** - Immediate Or Cancel (market-like with a price limit)
+- **ALO** - Add Liquidity Only (post-only, maker only)
 
 ### Client Order ID
 - 128-bit hex string: `0x1234567890abcdef1234567890abcdef`
-- Позволяет отслеживать ордера без oid
+- Allows order tracking without an oid
 
 ## WebSocket
 
 ```python
-# Подключение
+# Connection
 ws = websocket.connect("wss://api.hyperliquid.xyz/ws")
 
-# Подписки
+# Subscriptions
 {"method": "subscribe", "subscription": {"type": "allMids"}}
 {"method": "subscribe", "subscription": {"type": "l2Book", "coin": "BTC"}}
 {"method": "subscribe", "subscription": {"type": "trades", "coin": "BTC"}}
@@ -97,28 +123,28 @@ ws = websocket.connect("wss://api.hyperliquid.xyz/ws")
 ```
 
 ## Python SDK
-- Официальный: `hyperliquid-python-sdk`
-- Примеры: place order, cancel, market data, vault operations
-- Signing: EIP-712 через eth_account
+- Official package: `hyperliquid-python-sdk`
+- Includes examples for place order, cancel, market data, and vault operations
+- Signing uses EIP-712 via `eth_account`
 
 ## Rate Limits
-- Базовый: пропорционален cumulative volume
-- `nRequestsCap` = ~cumVlm (в USDC)
-- Можно купить доп. requests: 0.0005 USDC/request (`reserveRequestWeight`)
-- Dead man's switch: `scheduleCancel` — auto-cancel через N секунд
+- Base limit is proportional to cumulative volume
+- `nRequestsCap` = approximately `cumVlm` in USDC
+- Extra requests can be purchased for `0.0005` USDC/request via `reserveRequestWeight`
+- Dead man's switch: `scheduleCancel` supports auto-cancel after N seconds
 
-## Комиссии (базовые)
-- Taker (cross): 0.045%
-- Maker (add): 0.015%
-- VIP тиры снижают (от $5M volume)
-- MM тиры дают rebate на maker
-- Referral discount: 4%
-- Staking discount: до 30%
+## Fees (Base)
+- Taker (cross): `0.045%`
+- Maker (add): `0.015%`
+- VIP tiers reduce fees starting at `$5M` volume
+- MM tiers provide maker rebates
+- Referral discount: `4%`
+- Staking discount: up to `30%`
 
-## Особенности
-- Asset index: порядковый номер в `meta.universe` (BTC=0, ETH=1, ...)
+## Notes
+- Asset index: sequential number in `meta.universe` (BTC=0, ETH=1, ...)
 - Spot assets: `10000 + index`
-- HIP-3 DEX assets: prefix `dex:SYMBOL` (e.g. `xyz:XYZ100`)
-- Min order value: $10
-- Subaccounts: подписываются master-ключом с `vaultAddress`
-- Dead man's switch: max 10 triggers/day
+- HIP-3 DEX assets: prefix `dex:SYMBOL` (for example `xyz:XYZ100`)
+- Minimum order value: `$10`
+- Subaccounts are signed by the master key with `vaultAddress`
+- Dead man's switch: maximum `10` triggers per day

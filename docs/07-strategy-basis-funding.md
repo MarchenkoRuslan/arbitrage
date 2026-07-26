@@ -1,57 +1,57 @@
-# Стратегия: Basis + Funding Combined
+# Strategy: Basis + Funding Combined
 
-## Концепция
+## Concept
 
-Двойной источник прибыли: ценовой базис (spread convergence) + funding rate.
+Dual profit source: price basis (spread convergence) + funding rate.
 
 ```
 Total_Profit = Basis_Convergence + Funding_Income - Fees
 ```
 
-## Три сценария
+## Three Scenarios
 
-| Сценарий | Basis | Funding | Действие |
+| Scenario | Basis | Funding | Action |
 |----------|-------|---------|----------|
-| Идеальный | + (short дороже) | + (short получает) | Двойной профит |
-| Funding Insurance | - (против нас) | Высокий + | Фандинг покрывает basis loss |
-| Basis Play | Большой + | Маленький | Профит от convergence |
+| Ideal | + (short is richer) | + (short receives funding) | Double profit |
+| Funding Insurance | - (against us) | High + | Funding covers the basis loss |
+| Basis Play | Large + | Small | Profit from convergence |
 
 ## Combined Score
 
 ```python
-score = funding_за_24ч - комиссии_roundtrip + basis_bonus
+score = funding_24h - roundtrip_fees + basis_bonus
 
-basis_bonus = max(0, basis_bps) × 0.5  # 50% вероятность реализации
+basis_bonus = max(0, basis_bps) * 0.5  # 50% realization assumption
 ```
 
-Если basis отрицательный — проверяем сколько часов funding нужно чтобы покрыть:
+If basis is negative, check how many funding hours are needed to cover it:
 ```python
 hours_to_cover = abs(negative_basis_bps) / hourly_funding_bps
 if hours_to_cover > max_holding_hours: SKIP
 ```
 
-## Реальные примеры
+## Real Examples
 
-### UMA — идеальный кейс
+### UMA - ideal case
 ```
 Long Hyperliquid @ $0.3901, Short Aster @ $0.3932
 Basis: +80.5 bps, APR: 67%, Fees: ~21 bps
 Day 1: basis convergence +59.5 bps + funding 18.4 bps = +78 bps
 ```
 
-### CASHCAT — funding insurance
+### CASHCAT - funding insurance
 ```
-Basis: -54.9 bps (против нас), APR: 145%
-Funding: 39.7 bps/day → breakeven за 1.4 дня
+Basis: -54.9 bps (against us), APR: 145%
+Funding: 39.7 bps/day -> breakeven in 1.4 days
 Day 3: +119.1 - 54.9 - 21 = +43.2 bps
 ```
 
-## Сигналы выхода
+## Exit Signals
 
-| Сигнал | Действие |
+| Signal | Action |
 |--------|----------|
-| Funding сменил знак | Закрыть |
-| Margin ratio < 10% | Закрыть немедленно |
-| Basis сошёлся (< 5 bps) | Зафиксировать |
-| Spread расширился > 3x | Закрыть с убытком |
-| Combined score < 0 | Плановое закрытие |
+| Funding changed sign | Close |
+| Margin ratio < 10% | Close immediately |
+| Basis converged (< 5 bps) | Take profit |
+| Spread expanded > 3x | Close at a loss |
+| Combined score < 0 | Planned exit |
