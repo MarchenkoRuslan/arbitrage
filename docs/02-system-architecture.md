@@ -24,7 +24,12 @@
 │              └─────────┬──────────┘                           │
 │                        │                                      │
 │              ┌─────────▼──────────┐                           │
-│              │ Output/Alerts      │ ← CLI now, API later     │
+│              │ Output/Alerts      │ ← CLI + REST API + WS    │
+│              └────────────────────┘                           │
+│                                                             │
+│              ┌────────────────────┐                           │
+│              │ FastAPI Server     │ ← /opportunities, /config │
+│              │  + WS broadcast    │   /ws/opportunities       │
 │              └────────────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```

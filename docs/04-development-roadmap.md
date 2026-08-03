@@ -44,8 +44,8 @@ KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
 **Goal:** Notifications and remote access
 
 - [ ] Telegram bot (alerts when APR > threshold)
-- [ ] FastAPI REST endpoints
-- [ ] WebSocket for real-time updates
+- [x] FastAPI REST endpoints (`/opportunities`, `/config`) with Swagger UI
+- [x] WebSocket for real-time updates (`/ws/opportunities`)
 - [ ] Simple web dashboard
 
 ---
@@ -96,9 +96,9 @@ KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
 
 ## Current Stage
 
-- Actual state: Phase 1.5 (enhanced screener)
-- Already running in production: polling-based screener with validator and anti-churn
-- Next key step: notifications/API layer, then WS-first ingestion
+- Actual state: Phase 2 (API layer delivered)
+- Already running in production: polling-based screener with validator, anti-churn, REST API + WS
+- Next key step: Telegram notifications or WS-first ingestion
 
 ---
 

@@ -1,8 +1,11 @@
 import asyncio
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 
 from loguru import logger
 
 from src.core.config import Settings
+from src.core.models import ValidatedOpportunity
 from src.core.state import MarketState
 from src.exchanges.hyperliquid import HyperliquidConnector
 from src.exchanges.lighter import LighterConnector
@@ -16,12 +19,29 @@ class App:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or Settings()
+        self.started_at = datetime.now(timezone.utc)
         self.state = MarketState(sample_interval_s=self.settings.loop_interval_s)
         self.hl = HyperliquidConnector(self.settings)
         self.lighter = LighterConnector(self.settings)
+        self.last_validated: list[ValidatedOpportunity] = []
+        self.last_updated_at: datetime | None = None
+        self.last_poll_started_at: datetime | None = None
+        self.last_poll_finished_at: datetime | None = None
+        self.last_poll_duration_ms: float | None = None
+        self.poll_count_total = 0
+        self.poll_count_success = 0
+        self.poll_count_failed = 0
+        self.exchange_last_ok: dict[str, bool | None] = {
+            "hyperliquid": None,
+            "lighter": None,
+        }
+        self._on_update: Callable[[list[ValidatedOpportunity]], Awaitable[None]] | None = None
+        self._console_output: bool = True
 
     async def poll_once(self) -> None:
         """Single poll cycle: fetch from both DEXes, update state, run screener."""
+        self.poll_count_total += 1
+        self.last_poll_started_at = datetime.now(timezone.utc)
         fetch_timeout = self.settings.http_timeout * (self.settings.http_max_retries + 1) + 5
         try:
             results = await asyncio.wait_for(
@@ -33,6 +53,11 @@ class App:
                 timeout=fetch_timeout,
             )
         except TimeoutError:
+            self.poll_count_failed += 1
+            self.last_poll_finished_at = datetime.now(timezone.utc)
+            self.last_poll_duration_ms = (
+                self.last_poll_finished_at - self.last_poll_started_at
+            ).total_seconds() * 1000
             logger.error("Poll fetch timed out after {:.0f}s, skipping cycle", fetch_timeout)
             return
 
@@ -43,15 +68,24 @@ class App:
 
         if isinstance(results[0], Exception):
             logger.warning("Hyperliquid fetch failed: {}", results[0])
+            self.exchange_last_ok["hyperliquid"] = False
         else:
             hl_rates, hl_tickers = results[0]
+            self.exchange_last_ok["hyperliquid"] = True
 
         if isinstance(results[1], Exception):
             logger.warning("Lighter fetch failed: {}", results[1])
+            self.exchange_last_ok["lighter"] = False
         else:
             lighter_rates, lighter_tickers = results[1]
+            self.exchange_last_ok["lighter"] = True
 
         if not hl_rates and not lighter_rates:
+            self.poll_count_failed += 1
+            self.last_poll_finished_at = datetime.now(timezone.utc)
+            self.last_poll_duration_ms = (
+                self.last_poll_finished_at - self.last_poll_started_at
+            ).total_seconds() * 1000
             logger.error("Both exchanges failed, skipping poll cycle")
             return
 
@@ -78,7 +112,19 @@ class App:
 
         opps = find_opportunities_from_state(self.state, self.settings)
         validated = await validate_opportunities(opps, self.state, self.settings)
-        print_opportunities(validated)
+        self.last_validated = validated
+        self.last_updated_at = datetime.now(timezone.utc)
+
+        if self._console_output:
+            print_opportunities(validated)
+        if self._on_update is not None:
+            await self._on_update(validated)
+
+        self.poll_count_success += 1
+        self.last_poll_finished_at = datetime.now(timezone.utc)
+        self.last_poll_duration_ms = (
+            self.last_poll_finished_at - self.last_poll_started_at
+        ).total_seconds() * 1000
 
         ready_count = sum(1 for v in validated if v.status == "ready")
         if not validated:
@@ -89,7 +135,7 @@ class App:
         elif ready_count == 0:
             logger.info("Found {} opportunities, none ready for entry", len(validated))
 
-    async def run_loop(self) -> None:
+    async def run_loop(self, *, shutdown_on_exit: bool = True) -> None:
         """Continuous polling loop."""
         logger.info(
             "Starting DEX screener (interval={}s, min_edge={:.1f}bps, min_vol={:.0f})",
@@ -105,7 +151,8 @@ class App:
                     logger.error("Poll error: {}", e)
                 await asyncio.sleep(self.settings.loop_interval_s)
         finally:
-            await self.shutdown()
+            if shutdown_on_exit:
+                await self.shutdown()
 
     async def run_single(self) -> None:
         """Single execution then shutdown."""

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     loop_interval_s: float = 30.0
     stale_data_s: float = 35.0
 
+    # API server
+    api_host: str = "127.0.0.1"
+    api_port: int = 8000
+
     # Exchanges
     hl_base_url: str = "https://api.hyperliquid.xyz"
     lighter_base_url: str = "https://mainnet.zklighter.elliot.ai"
