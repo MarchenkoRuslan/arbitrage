@@ -13,10 +13,10 @@ Current focus: a fast and reliable read-only screener that:
 
 ## Current Status
 
-- Stage: Phase 1.5 (enhanced screener)
-- Implemented: connectors, normalization, state cache, resilient HTTP, scoring, entry validator, anti-churn, CLI output
+- Stage: Phase 2 (API layer delivered)
+- Implemented: connectors, normalization, state cache, resilient HTTP, scoring, entry validator, anti-churn, CLI output, REST API, WebSocket feed, runtime status endpoint
 - Prepared: WS feed modules for the move to event-driven ingestion
-- Not implemented yet: execution engine, risk automation, alerts/API/dashboard
+- Not implemented yet: execution engine, risk automation, Telegram notifications, web dashboard
 
 ## How It Works
 

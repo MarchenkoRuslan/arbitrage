@@ -29,7 +29,7 @@
 │                                                             │
 │              ┌────────────────────┐                           │
 │              │ FastAPI Server     │ ← /opportunities, /config │
-│              │  + WS broadcast    │   /ws/opportunities       │
+│              │  + WS broadcast    │   /status, /ws/opportunities │
 │              └────────────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -106,7 +106,7 @@ Simultaneous position open/close flow.
 
 ```
 Current runtime (polling):
-  Exchanges → Connectors → MarketState → Screener → CLI
+  Exchanges → Connectors → MarketState → Screener → CLI + REST API + WS
 
 Target runtime (WS-first):
   WS Feeds + REST Snapshot/Recovery → MarketState → Screener → Alerts/API
@@ -133,7 +133,7 @@ Position closing:
 ## Validation
 
 - Install dependencies with `python -m pip install -e ".[dev]"`.
-- Run the app with `python -m src.main` or `python -m src.main --loop`.
+- Run the app with `python -m src.main`, `python -m src.main --loop`, or `python -m src.main --serve`.
 - Use `pytest` for tests and `ruff check .` for linting when a task touches Python code.
 
 ## Documentation
