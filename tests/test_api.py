@@ -14,6 +14,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api.server import create_api
 from src.api.schemas import build_opportunities_response
+from src.api.ws import ConnectionManager
 from src.core.app import App
 from src.core.config import Settings
 from src.core.models import ArbitrageOpportunity, ValidatedOpportunity
@@ -265,6 +266,23 @@ async def test_ws_receives_broadcast_on_update(app: App, fastapi_app) -> None:
         server.should_exit = True
         with contextlib.suppress(asyncio.CancelledError):
             await asyncio.wait_for(task, timeout=3)
+
+
+@pytest.mark.asyncio
+async def test_broadcast_closes_and_prunes_failed_websocket() -> None:
+    class _FakeWebSocket:
+        def __init__(self) -> None:
+            self.send_json = AsyncMock(side_effect=RuntimeError("send failed"))
+            self.close = AsyncMock()
+
+    manager = ConnectionManager(send_timeout_s=0.01)
+    ws = _FakeWebSocket()
+    manager._connections.add(ws)  # type: ignore[arg-type]
+
+    await manager.broadcast({"hello": "world"})
+
+    ws.close.assert_awaited_once()
+    assert ws not in manager._connections
 
 
 @pytest.mark.asyncio

@@ -33,6 +33,12 @@ class ConnectionManager:
             except asyncio.CancelledError:
                 raise
             except Exception:
+                try:
+                    await ws.close()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    pass
                 return ws
 
         results = await asyncio.gather(*(_send_one(ws) for ws in targets))
