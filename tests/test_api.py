@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import json
+import socket
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
@@ -14,6 +15,12 @@ from src.api.schemas import build_opportunities_response
 from src.core.app import App
 from src.core.config import Settings
 from src.core.models import ArbitrageOpportunity, ValidatedOpportunity
+
+
+def _get_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
 
 
 def _settings() -> Settings:
@@ -192,11 +199,12 @@ async def test_poll_once_updates_status_and_opportunities(fastapi_app) -> None:
 @pytest.mark.asyncio
 async def test_ws_receives_broadcast_on_update(app: App, fastapi_app) -> None:
     app.last_validated = [_validated_opp("SOL", 60.0)]
+    port = _get_free_port()
 
     config = uvicorn.Config(
         fastapi_app,
         host="127.0.0.1",
-        port=8011,
+        port=port,
         log_level="error",
         lifespan="on",
     )
@@ -206,7 +214,7 @@ async def test_ws_receives_broadcast_on_update(app: App, fastapi_app) -> None:
         while not server.started:
             await asyncio.sleep(0.01)
 
-        async with websockets.connect("ws://127.0.0.1:8011/ws/opportunities") as ws:
+        async with websockets.connect(f"ws://127.0.0.1:{port}/ws/opportunities") as ws:
             payload = build_opportunities_response(app.last_validated).model_dump()
             await fastapi_app.state.ws_manager.broadcast(payload)
             message = await asyncio.wait_for(ws.recv(), timeout=2)

@@ -55,6 +55,9 @@ class App:
                     timeout=fetch_timeout,
                 )
             except TimeoutError:
+                # Global fetch timeout means neither venue can be trusted as fresh for this cycle.
+                self.exchange_last_ok["hyperliquid"] = False
+                self.exchange_last_ok["lighter"] = False
                 logger.error("Poll fetch timed out after {:.0f}s, skipping cycle", fetch_timeout)
                 return
 
