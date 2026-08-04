@@ -85,7 +85,10 @@ def fastapi_app_no_lifespan(app: App):
 
 
 @pytest.mark.asyncio
-async def test_get_opportunities_returns_empty_before_poll(app: App, fastapi_app_no_lifespan) -> None:
+async def test_get_opportunities_returns_empty_before_poll(
+    app: App,
+    fastapi_app_no_lifespan,
+) -> None:
     transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/opportunities")
@@ -156,7 +159,10 @@ async def test_get_status_returns_runtime_metrics(app: App, fastapi_app_no_lifes
 
 
 @pytest.mark.asyncio
-async def test_openapi_contract_contains_phase2_paths_and_status_schema(app: App, fastapi_app_no_lifespan) -> None:
+async def test_openapi_contract_contains_phase2_paths_and_status_schema(
+    app: App,
+    fastapi_app_no_lifespan,
+) -> None:
     transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/openapi.json")
@@ -191,11 +197,25 @@ async def test_poll_once_updates_status_and_opportunities(fastapi_app_no_lifespa
     now = datetime.now(timezone.utc)
     app.hl.get_market_data = AsyncMock(return_value=(
         {"BTC": FundingRate(symbol="BTC", period_hours=1, apr=5.0, timestamp=now)},
-        {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), index_price=Decimal("100"), volume_24h=1e6)},
+        {
+            "BTC": Ticker(
+                symbol="BTC",
+                mark_price=Decimal("100"),
+                index_price=Decimal("100"),
+                volume_24h=1e6,
+            )
+        },
     ))
     app.lighter.get_market_data = AsyncMock(return_value=(
         {"BTC": FundingRate(symbol="BTC", period_hours=1, apr=50.0, timestamp=now)},
-        {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), index_price=Decimal("100"), volume_24h=1e6)},
+        {
+            "BTC": Ticker(
+                symbol="BTC",
+                mark_price=Decimal("100"),
+                index_price=Decimal("100"),
+                volume_24h=1e6,
+            )
+        },
     ))
 
     await app.poll_once()

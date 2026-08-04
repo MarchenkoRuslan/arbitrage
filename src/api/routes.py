@@ -59,9 +59,15 @@ async def get_status(request: Request) -> StatusResponse:
     return StatusResponse(
         uptime_s=round(uptime_s, 3),
         started_at=app.started_at.isoformat(),
-        last_updated_at=app.last_updated_at.isoformat() if app.last_updated_at else None,
-        last_poll_started_at=app.last_poll_started_at.isoformat() if app.last_poll_started_at else None,
-        last_poll_finished_at=app.last_poll_finished_at.isoformat() if app.last_poll_finished_at else None,
+        last_updated_at=(
+            app.last_updated_at.isoformat() if app.last_updated_at else None
+        ),
+        last_poll_started_at=(
+            app.last_poll_started_at.isoformat() if app.last_poll_started_at else None
+        ),
+        last_poll_finished_at=(
+            app.last_poll_finished_at.isoformat() if app.last_poll_finished_at else None
+        ),
         last_poll_duration_ms=round(app.last_poll_duration_ms, 3)
         if app.last_poll_duration_ms is not None
         else None,
