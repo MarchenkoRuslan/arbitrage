@@ -44,7 +44,7 @@ KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
 **Goal:** Notifications and remote access
 
 - [ ] Telegram bot (alerts when APR > threshold)
-- [x] FastAPI REST endpoints (`/opportunities`, `/config`) with Swagger UI
+- [x] FastAPI REST endpoints (`/opportunities`, `/config`, `/status`) with Swagger UI
 - [x] WebSocket for real-time updates (`/ws/opportunities`)
 - [ ] Simple web dashboard
 

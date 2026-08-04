@@ -1,5 +1,5 @@
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from loguru import logger
@@ -13,24 +13,44 @@ from src.core.models import ValidatedOpportunity
 
 def create_api(app: App) -> FastAPI:
     ws_manager = ConnectionManager()
+    update_queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=1)
 
-    async def _broadcast_results(validated: list[ValidatedOpportunity]) -> None:
+    async def _enqueue_results(validated: list[ValidatedOpportunity]) -> None:
         ts = app.last_updated_at.isoformat() if app.last_updated_at is not None else None
         payload = build_opportunities_response(validated, updated_at=ts).model_dump()
-        await ws_manager.broadcast(payload)
+        if update_queue.full():
+            with suppress(asyncio.QueueEmpty):
+                update_queue.get_nowait()
+                update_queue.task_done()
+        with suppress(asyncio.QueueFull):
+            update_queue.put_nowait(payload)
+
+    async def _broadcast_loop() -> None:
+        while True:
+            payload = await update_queue.get()
+            try:
+                await ws_manager.broadcast(payload)
+            finally:
+                update_queue.task_done()
 
     @asynccontextmanager
     async def lifespan(fastapi_app: FastAPI):
         app._console_output = False
-        app._on_update = _broadcast_results
+        app._on_update = _enqueue_results
+        broadcast_task = asyncio.create_task(_broadcast_loop())
         poll_task = asyncio.create_task(app.run_loop(shutdown_on_exit=False))
         logger.info("API server started, polling loop running in background")
         try:
             yield
         finally:
             poll_task.cancel()
+            broadcast_task.cancel()
             try:
                 await poll_task
+            except asyncio.CancelledError:
+                pass
+            try:
+                await broadcast_task
             except asyncio.CancelledError:
                 pass
             await app.shutdown()

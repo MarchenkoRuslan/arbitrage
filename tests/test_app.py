@@ -129,3 +129,38 @@ async def test_poll_once_records_snapshots_only_for_common_symbols() -> None:
     assert "SOL" not in app.state._snapshots
 
     await app.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_poll_once_counts_failed_when_update_callback_raises() -> None:
+    settings = Settings(
+        min_score_bps=0.0, min_volume_24h=0.0, min_persistence_hours=0.0,
+        hl_fee_per_side=0.0, lighter_fee_per_side=0.0,
+        expected_hold_hours=72.0, basis_weight=0.0, stale_data_s=60.0,
+    )
+    app = App(settings)
+
+    app.hl.get_market_data = AsyncMock(return_value=(
+        {"BTC": _funding("BTC", 5.0)},
+        {"BTC": _ticker("BTC")},
+    ))
+    app.lighter.get_market_data = AsyncMock(return_value=(
+        {"BTC": _funding("BTC", 15.0)},
+        {"BTC": _ticker("BTC")},
+    ))
+
+    async def _raise(_: list) -> None:
+        raise RuntimeError("callback failed")
+
+    app._on_update = _raise
+
+    with pytest.raises(RuntimeError):
+        await app.poll_once()
+
+    assert app.poll_count_total == 1
+    assert app.poll_count_success == 0
+    assert app.poll_count_failed == 1
+    assert app.last_poll_finished_at is not None
+    assert app.last_poll_duration_ms is not None
+
+    await app.shutdown()
