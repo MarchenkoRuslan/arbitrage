@@ -13,10 +13,10 @@ Current focus: a fast and reliable read-only screener that:
 
 ## Current Status
 
-- Stage: Phase 1.5 (enhanced screener)
-- Implemented: connectors, normalization, state cache, resilient HTTP, scoring, entry validator, anti-churn, CLI output
+- Stage: Phase 2 (API layer delivered)
+- Implemented: connectors, normalization, state cache, resilient HTTP, scoring, entry validator, anti-churn, CLI output, REST API, WebSocket feed, runtime status endpoint
 - Prepared: WS feed modules for the move to event-driven ingestion
-- Not implemented yet: execution engine, risk automation, alerts/API/dashboard
+- Not implemented yet: execution engine, risk automation, Telegram notifications, web dashboard
 
 ## How It Works
 
@@ -64,6 +64,11 @@ Checks include:
 arbitrage/
 ├── docs/
 ├── src/
+│   ├── api/
+│   │   ├── routes.py       # REST endpoints
+│   │   ├── schemas.py      # Response models (OpenAPI)
+│   │   ├── server.py       # FastAPI app factory + lifespan
+│   │   └── ws.py           # WebSocket connection manager
 │   ├── core/
 │   │   ├── app.py          # Application orchestrator
 │   │   ├── config.py       # Environment-based configuration
@@ -91,6 +96,23 @@ python -m pip install -e ".[dev]"
 python -m src.main
 python -m src.main --loop
 ```
+
+## API Server
+
+Start the REST API with Swagger UI and WebSocket feed:
+
+```bash
+python -m src.main --serve
+```
+
+- Swagger UI: http://127.0.0.1:8000/docs
+- `GET /opportunities` — current ranked opportunity list
+- `GET /config` — active screener settings (read-only)
+- `GET /status` — runtime health and polling metrics
+- `WS /ws/opportunities` — receives a JSON frame after each poll cycle
+
+The polling loop runs in the background inside the same process.
+Configure host/port with `ARB_API_HOST` and `ARB_API_PORT`.
 
 ## Typical Run Setup
 
@@ -187,6 +209,8 @@ python -m src.main --loop
 - `ARB_BASIS_WEIGHT` (default: `0.5`)
 - `ARB_STALE_DATA_S` (default: `35.0`)
 - `ARB_LOOP_INTERVAL_S` (default: `30`)
+- `ARB_API_HOST` (default: `127.0.0.1`)
+- `ARB_API_PORT` (default: `8000`)
 
 ## Limitations
 
