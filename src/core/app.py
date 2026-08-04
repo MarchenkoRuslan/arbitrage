@@ -43,6 +43,7 @@ class App:
         self.poll_count_total += 1
         self.last_poll_started_at = datetime.now(timezone.utc)
         poll_ok = False
+        poll_cancelled = False
         fetch_timeout = self.settings.http_timeout * (self.settings.http_max_retries + 1) + 5
         try:
             try:
@@ -125,12 +126,17 @@ class App:
                 logger.info("Found {} opportunities, none ready for entry", len(validated))
 
             poll_ok = True
+        except asyncio.CancelledError:
+            poll_cancelled = True
+            raise
         finally:
             self.last_poll_finished_at = datetime.now(timezone.utc)
             self.last_poll_duration_ms = (
                 self.last_poll_finished_at - self.last_poll_started_at
             ).total_seconds() * 1000
-            if poll_ok:
+            if poll_cancelled:
+                self.poll_count_total -= 1
+            elif poll_ok:
                 self.poll_count_success += 1
             else:
                 self.poll_count_failed += 1

@@ -35,6 +35,8 @@ def create_api(app: App) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(fastapi_app: FastAPI):
+        prev_console_output = app._console_output
+        prev_on_update = app._on_update
         app._console_output = False
         app._on_update = _enqueue_results
         broadcast_task = asyncio.create_task(_broadcast_loop())
@@ -53,6 +55,8 @@ def create_api(app: App) -> FastAPI:
                 await broadcast_task
             except asyncio.CancelledError:
                 pass
+            app._console_output = prev_console_output
+            app._on_update = prev_on_update
             await app.shutdown()
 
     fastapi_app = FastAPI(

@@ -232,3 +232,16 @@ async def test_ws_receives_broadcast_on_update(app: App, fastapi_app) -> None:
         server.should_exit = True
         with contextlib.suppress(asyncio.CancelledError):
             await asyncio.wait_for(task, timeout=3)
+
+
+@pytest.mark.asyncio
+async def test_api_lifespan_restores_app_state_after_shutdown(app: App, fastapi_app) -> None:
+    original_console_output = app._console_output
+    original_on_update = app._on_update
+
+    async with fastapi_app.router.lifespan_context(fastapi_app):
+        assert app._console_output is False
+        assert app._on_update is not original_on_update or app._on_update is not None
+
+    assert app._console_output is original_console_output
+    assert app._on_update is original_on_update
