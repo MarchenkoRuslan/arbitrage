@@ -254,7 +254,8 @@ async def test_api_lifespan_restores_app_state_after_shutdown(app: App, fastapi_
 
     async with fastapi_app.router.lifespan_context(fastapi_app):
         assert app._console_output is False
-        assert app._on_update is not original_on_update or app._on_update is not None
+        assert app._on_update is not None
+        assert app._on_update is not original_on_update
 
     assert app._console_output is original_console_output
     assert app._on_update is original_on_update
