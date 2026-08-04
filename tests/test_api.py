@@ -211,7 +211,10 @@ async def test_ws_receives_broadcast_on_update(app: App, fastapi_app) -> None:
     server = uvicorn.Server(config)
     task = asyncio.create_task(server.serve())
     try:
+        deadline = asyncio.get_running_loop().time() + 5
         while not server.started:
+            if asyncio.get_running_loop().time() >= deadline:
+                raise TimeoutError("Uvicorn server did not start within 5 seconds")
             await asyncio.sleep(0.01)
 
         async with websockets.connect(f"ws://127.0.0.1:{port}/ws/opportunities") as ws:

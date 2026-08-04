@@ -71,14 +71,14 @@ class App:
                 self.exchange_last_ok["hyperliquid"] = False
             else:
                 hl_rates, hl_tickers = results[0]
-                self.exchange_last_ok["hyperliquid"] = True
+                self.exchange_last_ok["hyperliquid"] = bool(hl_rates)
 
             if isinstance(results[1], Exception):
                 logger.warning("Lighter fetch failed: {}", results[1])
                 self.exchange_last_ok["lighter"] = False
             else:
                 lighter_rates, lighter_tickers = results[1]
-                self.exchange_last_ok["lighter"] = True
+                self.exchange_last_ok["lighter"] = bool(lighter_rates)
 
             if not hl_rates and not lighter_rates:
                 logger.error("Both exchanges failed, skipping poll cycle")
