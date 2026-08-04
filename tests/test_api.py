@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import socket
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
@@ -71,9 +72,21 @@ def fastapi_app(app: App):
     return create_api(app)
 
 
+@asynccontextmanager
+async def _no_lifespan(_: object):
+    yield
+
+
+@pytest.fixture
+def fastapi_app_no_lifespan(app: App):
+    api = create_api(app)
+    api.router.lifespan_context = _no_lifespan
+    return api
+
+
 @pytest.mark.asyncio
-async def test_get_opportunities_returns_empty_before_poll(app: App, fastapi_app) -> None:
-    transport = ASGITransport(app=fastapi_app, raise_app_exceptions=False)
+async def test_get_opportunities_returns_empty_before_poll(app: App, fastapi_app_no_lifespan) -> None:
+    transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/opportunities")
 
@@ -85,10 +98,10 @@ async def test_get_opportunities_returns_empty_before_poll(app: App, fastapi_app
 
 
 @pytest.mark.asyncio
-async def test_get_opportunities_returns_stored_results(app: App, fastapi_app) -> None:
+async def test_get_opportunities_returns_stored_results(app: App, fastapi_app_no_lifespan) -> None:
     app.last_validated = [_validated_opp("ETH", 80.0), _validated_opp("BTC", 50.0)]
     app.last_updated_at = datetime.now(timezone.utc)
-    transport = ASGITransport(app=fastapi_app, raise_app_exceptions=False)
+    transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/opportunities")
 
@@ -104,8 +117,8 @@ async def test_get_opportunities_returns_stored_results(app: App, fastapi_app) -
 
 
 @pytest.mark.asyncio
-async def test_get_config_returns_current_settings(app: App, fastapi_app) -> None:
-    transport = ASGITransport(app=fastapi_app, raise_app_exceptions=False)
+async def test_get_config_returns_current_settings(app: App, fastapi_app_no_lifespan) -> None:
+    transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/config")
 
@@ -120,14 +133,14 @@ async def test_get_config_returns_current_settings(app: App, fastapi_app) -> Non
 
 
 @pytest.mark.asyncio
-async def test_get_status_returns_runtime_metrics(app: App, fastapi_app) -> None:
+async def test_get_status_returns_runtime_metrics(app: App, fastapi_app_no_lifespan) -> None:
     app.poll_count_total = 3
     app.poll_count_success = 2
     app.poll_count_failed = 1
     app.exchange_last_ok["hyperliquid"] = True
     app.exchange_last_ok["lighter"] = False
 
-    transport = ASGITransport(app=fastapi_app, raise_app_exceptions=False)
+    transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/status")
 
@@ -143,8 +156,8 @@ async def test_get_status_returns_runtime_metrics(app: App, fastapi_app) -> None
 
 
 @pytest.mark.asyncio
-async def test_openapi_contract_contains_phase2_paths_and_status_schema(app: App, fastapi_app) -> None:
-    transport = ASGITransport(app=fastapi_app, raise_app_exceptions=False)
+async def test_openapi_contract_contains_phase2_paths_and_status_schema(app: App, fastapi_app_no_lifespan) -> None:
+    transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/openapi.json")
 
@@ -168,13 +181,13 @@ async def test_openapi_contract_contains_phase2_paths_and_status_schema(app: App
 
 
 @pytest.mark.asyncio
-async def test_poll_once_updates_status_and_opportunities(fastapi_app) -> None:
+async def test_poll_once_updates_status_and_opportunities(fastapi_app_no_lifespan) -> None:
     """Integration: a real poll cycle updates both /status and /opportunities."""
     from decimal import Decimal
 
     from src.core.models import FundingRate, Ticker
 
-    app: App = fastapi_app.state.screener_app
+    app: App = fastapi_app_no_lifespan.state.screener_app
     now = datetime.now(timezone.utc)
     app.hl.get_market_data = AsyncMock(return_value=(
         {"BTC": FundingRate(symbol="BTC", period_hours=1, apr=5.0, timestamp=now)},
@@ -187,7 +200,7 @@ async def test_poll_once_updates_status_and_opportunities(fastapi_app) -> None:
 
     await app.poll_once()
 
-    transport = ASGITransport(app=fastapi_app, raise_app_exceptions=False)
+    transport = ASGITransport(app=fastapi_app_no_lifespan, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         status = (await client.get("/status")).json()
         opps = (await client.get("/opportunities")).json()
