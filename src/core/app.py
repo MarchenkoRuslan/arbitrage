@@ -147,6 +147,8 @@ class App:
             while True:
                 try:
                     await self.poll_once()
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     logger.error("Poll error: {}", e)
                 await asyncio.sleep(self.settings.loop_interval_s)

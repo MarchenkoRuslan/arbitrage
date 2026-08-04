@@ -29,6 +29,8 @@ class ConnectionManager:
         for ws in targets:
             try:
                 await asyncio.wait_for(ws.send_json(data), timeout=self._send_timeout_s)
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 stale.append(ws)
         if stale:
