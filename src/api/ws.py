@@ -25,14 +25,18 @@ class ConnectionManager:
             targets = list(self._connections)
         if not targets:
             return
-        stale: list[WebSocket] = []
-        for ws in targets:
+
+        async def _send_one(ws: WebSocket) -> WebSocket | None:
             try:
                 await asyncio.wait_for(ws.send_json(data), timeout=self._send_timeout_s)
+                return None
             except asyncio.CancelledError:
                 raise
             except Exception:
-                stale.append(ws)
+                return ws
+
+        results = await asyncio.gather(*(_send_one(ws) for ws in targets))
+        stale = [ws for ws in results if ws is not None]
         if stale:
             async with self._lock:
                 for ws in stale:
