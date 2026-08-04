@@ -34,7 +34,7 @@ def create_api(app: App) -> FastAPI:
                 update_queue.task_done()
 
     @asynccontextmanager
-    async def lifespan(fastapi_app: FastAPI):
+    async def lifespan(_fastapi_app: FastAPI):
         prev_console_output = app._console_output
         prev_on_update = app._on_update
         app._console_output = False
