@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
+import pytest_asyncio
 import uvicorn
 import websockets
 from httpx import ASGITransport, AsyncClient
@@ -54,12 +55,15 @@ def _validated_opp(symbol: str = "BTC", score: float = 50.0) -> ValidatedOpportu
     )
 
 
-@pytest.fixture
-def app() -> App:
+@pytest_asyncio.fixture
+async def app() -> App:
     a = App(_settings())
     a.hl.get_market_data = AsyncMock(return_value=({}, {}))
     a.lighter.get_market_data = AsyncMock(return_value=({}, {}))
-    return a
+    try:
+        yield a
+    finally:
+        await a.shutdown()
 
 
 @pytest.fixture
