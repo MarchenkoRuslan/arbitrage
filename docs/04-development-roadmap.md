@@ -36,9 +36,9 @@
 
 **Live output sample:**
 ```
-Symbol     Long         Short         Diff APR%   Fund bps  Basis bps Fees bps  Score bps    BE h Trnd Liq Status
-AERO       lighter      hyperliquid      177.75     146.09      3.22     7.00     143.45      3.5    →   H READY
-KAITO      lighter      hyperliquid      172.71     141.95     -1.10     7.00     139.92      3.5    ↑   M READY
+Symbol     Long         Short         Diff APR%   Fund bps  Basis bps Fees bps  Score bps    BE h   L h2f   S h2f   TPen Trnd Liq Status
+AERO       lighter      hyperliquid      177.75     146.09      3.22     7.00     143.45      3.5     0.4     0.1    0.6    →   H READY
+KAITO      lighter      hyperliquid      172.71     141.95     -1.10     7.00     139.92      3.5     0.2     0.2    0.0    ↑   M READY
 
 Total: 31 | Ready: 28
 ```

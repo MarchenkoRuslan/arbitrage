@@ -205,3 +205,23 @@ async def test_market_state_basis_trend_negative_when_spread_narrows() -> None:
     trend = state.get_basis_trend("lighter", "hyperliquid", "ETH")
     assert trend is not None
     assert trend < 0
+
+
+@pytest.mark.asyncio
+async def test_market_state_basis_trend_returns_none_for_invalid_exchange_pair() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    await state.record_snapshot(
+        "BTC",
+        {"hyperliquid": _funding("BTC", 5.0), "lighter": _funding("BTC", 11.0)},
+        tickers={"hyperliquid": _ticker("BTC", "102"), "lighter": _ticker("BTC", "100")},
+    )
+    await state.record_snapshot(
+        "BTC",
+        {"hyperliquid": _funding("BTC", 6.0), "lighter": _funding("BTC", 12.0)},
+        tickers={"hyperliquid": _ticker("BTC", "103"), "lighter": _ticker("BTC", "100")},
+    )
+
+    assert state.get_basis_trend("unknown", "hyperliquid", "BTC") is None
+    assert state.get_basis_trend("hyperliquid", "unknown", "BTC") is None
+    assert state.get_basis_trend("hyperliquid", "hyperliquid", "BTC") is None

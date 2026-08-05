@@ -177,7 +177,12 @@ class MarketState:
         lookback_samples: int = 6,
     ) -> float | None:
         """Basis slope in bps/sample. Positive means spread is widening for the given direction."""
-        if short_exchange not in self._SUPPORTED_EXCHANGES:
+        if (
+            long_exchange not in self._SUPPORTED_EXCHANGES
+            or short_exchange not in self._SUPPORTED_EXCHANGES
+            or long_exchange == short_exchange
+            or {long_exchange, short_exchange} != self._SUPPORTED_EXCHANGES
+        ):
             return None
         history = self._snapshots.get(symbol)
         if not history:
