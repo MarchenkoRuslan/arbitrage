@@ -41,13 +41,24 @@ async def validate_opportunities(
         if opp.basis_trend is not None and abs(opp.basis_trend) > 3.0:
             reasons.append(f"basis unstable ({opp.basis_trend:+.1f}bps/tick)")
 
-        # 6. Data freshness (double-check from validator perspective)
+        # 6. Funding timing asymmetry risk
+        if (
+            settings.max_funding_timing_asymmetry_hours > 0
+            and opp.funding_timing_asymmetry_hours is not None
+            and opp.funding_timing_asymmetry_hours > settings.max_funding_timing_asymmetry_hours
+        ):
+            reasons.append(
+                f"funding timing asymmetry {opp.funding_timing_asymmetry_hours:.1f}h > "
+                f"{settings.max_funding_timing_asymmetry_hours:.1f}h limit"
+            )
+
+        # 7. Data freshness (double-check from validator perspective)
         if state.is_stale("hyperliquid", opp.symbol, max_age_s=settings.stale_data_s):
             reasons.append("hyperliquid data stale")
         if state.is_stale("lighter", opp.symbol, max_age_s=settings.stale_data_s):
             reasons.append("lighter data stale")
 
-        # 7. Anti-churn: suppress repeated signals
+        # 8. Anti-churn: suppress repeated signals
         if not reasons:
             last_signal = state.get_last_signal(opp.symbol)
             if last_signal is not None:

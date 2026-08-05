@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FundingRate(BaseModel):
@@ -32,6 +32,10 @@ class ArbitrageOpportunity(BaseModel):
     basis_bps: float
     basis_bonus_bps: float
     fee_impact_bps: float
+    long_hours_to_next_funding: float | None = None
+    short_hours_to_next_funding: float | None = None
+    funding_timing_asymmetry_hours: float | None = None
+    funding_timing_penalty_bps: float = 0.0
     min_profitable_hours: float | None = None
     hours_to_breakeven: float | None = None
     combined_score: float
@@ -42,4 +46,4 @@ class ArbitrageOpportunity(BaseModel):
 class ValidatedOpportunity(BaseModel):
     opportunity: ArbitrageOpportunity
     status: Literal["ready", "watching", "blocked"]
-    reasons: list[str] = []
+    reasons: list[str] = Field(default_factory=list)

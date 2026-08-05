@@ -47,6 +47,8 @@ async def get_config(request: Request) -> ConfigResponse:
         expected_hold_hours=s.expected_hold_hours,
         basis_weight=s.basis_weight,
         liquidity_weight=s.liquidity_weight,
+        timing_penalty_bps_per_hour=s.timing_penalty_bps_per_hour,
+        max_funding_timing_asymmetry_hours=s.max_funding_timing_asymmetry_hours,
         max_basis_bps=s.max_basis_bps,
         loop_interval_s=s.loop_interval_s,
         stale_data_s=s.stale_data_s,

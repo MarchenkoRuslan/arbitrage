@@ -79,7 +79,7 @@ Profit: basis convergence (+59.5 bps) + funding (18.4 bps/day)
 ### 3.1 Combined Score (Ranking Formula)
 
 ```
-combined_edge_bps = funding_edge_bps - roundtrip_fees_bps + basis_bonus_bps + liquidity_bps
+combined_edge_bps = funding_edge_bps - roundtrip_fees_bps + basis_bonus_bps + liquidity_bps - timing_penalty_bps
 
 Where:
 - funding_edge_bps = funding_diff_apr * (expected_hold_hours / 8760) * 100
@@ -87,6 +87,7 @@ Where:
 - basis_bonus_bps = max(0, directional_basis_bps) * basis_weight  (default 0.5)
 - directional_basis_bps > 0 only when the short leg is richer than the long leg
 - liquidity_bps = log2(min_volume / min_volume_gate) * liquidity_weight  (0 when weight is 0)
+- timing_penalty_bps = abs(short_h2f - long_h2f) * timing_penalty_bps_per_hour
 ```
 
 ### 3.2 Minimum Entry Threshold
@@ -120,6 +121,7 @@ With 5x leverage: about 54.75% APR before fees
 | Funding flip | The rate changes sign -> you pay instead of receive | Monitor predicted rate, auto-close |
 | Price deviation | Prices diverge by more than 1% across exchanges | Rebalancing, margin buffer |
 | Slippage | Low liquidity -> expensive entry/exit | Check order book depth |
+| Funding timing asymmetry | Funding windows are too far apart between legs | Watchlist or skip when asymmetry exceeds threshold |
 | Exchange risk | Trading freeze, delisting | Diversify across exchanges |
 
 ### ANSEM Case (Real)
@@ -145,6 +147,7 @@ With 5x leverage: about 54.75% APR before fees
 | Min Profitable Hours | Minimum time required to reach profitability |
 | Basis Trend | Slope of basis over recent snapshots (bps/sample) |
 | Liquidity Tier | H/M/L relative to min volume gate (×10/×3/×1) |
+| Hours to Next Funding | Countdown for long and short legs (h) |
 
 ---
 

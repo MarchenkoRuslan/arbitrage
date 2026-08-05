@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     expected_hold_hours: float = 72.0
     basis_weight: float = 0.5
     liquidity_weight: float = 0.0
+    timing_penalty_bps_per_hour: float = 0.0
+    max_funding_timing_asymmetry_hours: float = 0.0
     max_basis_bps: float = 0.0
     loop_interval_s: float = 30.0
     stale_data_s: float = 35.0

@@ -32,6 +32,7 @@
 - [x] Basis trend tracking (slope over recent snapshots, stored in FundingSnapshot)
 - [x] Liquidity quality scoring (log2-scaled weight, H/M/L tier classification)
 - [x] Basis magnitude and trend instability validator warnings
+- [x] Funding timing asymmetry validator warning (configurable threshold)
 
 **Live output sample:**
 ```

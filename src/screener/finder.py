@@ -1,8 +1,20 @@
 import math
+from datetime import datetime
 
 from src.core.config import Settings
 from src.core.models import ArbitrageOpportunity, FundingRate, Ticker
 from src.core.state import MarketState
+
+
+def _hours_to_next_funding(ts: datetime, period_hours: int) -> float | None:
+    if period_hours <= 0:
+        return None
+    period_s = period_hours * 3600
+    elapsed_s = ts.timestamp() % period_s
+    remaining_s = period_s - elapsed_s
+    if remaining_s == period_s:
+        remaining_s = 0.0
+    return remaining_s / 3600
 
 
 def find_opportunities_from_state(state: MarketState, settings: Settings) -> list[ArbitrageOpportunity]:
@@ -102,9 +114,11 @@ def find_opportunities(
 
         if long_exchange == "hyperliquid":
             long_rate_apr, short_rate_apr = hl.apr, lighter.apr
+            long_rate, short_rate = hl, lighter
             long_tick, short_tick = hl_tick, lighter_tick
         else:
             long_rate_apr, short_rate_apr = lighter.apr, hl.apr
+            long_rate, short_rate = lighter, hl
             long_tick, short_tick = lighter_tick, hl_tick
 
         funding_diff_apr = short_rate_apr - long_rate_apr
@@ -139,6 +153,19 @@ def find_opportunities(
         basis_bonus_bps = max(0.0, basis_bps) * settings.basis_weight
         min_profitable_hours = roundtrip_fee_bps / hourly_funding_bps if hourly_funding_bps > 0 else None
 
+        long_h2f = _hours_to_next_funding(long_rate.timestamp, long_rate.period_hours)
+        short_h2f = _hours_to_next_funding(short_rate.timestamp, short_rate.period_hours)
+        asymmetry_h = (
+            abs(short_h2f - long_h2f)
+            if short_h2f is not None and long_h2f is not None
+            else None
+        )
+        timing_penalty_bps = (
+            asymmetry_h * settings.timing_penalty_bps_per_hour
+            if asymmetry_h is not None
+            else 0.0
+        )
+
         liquidity_bps = 0.0
         if settings.liquidity_weight > 0 and settings.min_volume_24h > 0:
             vol_ratio = min_vol / settings.min_volume_24h
@@ -151,7 +178,7 @@ def find_opportunities(
         else:
             liquidity_tier = "L"
 
-        combined_score = funding_edge_bps - roundtrip_fee_bps + basis_bonus_bps + liquidity_bps
+        combined_score = funding_edge_bps - roundtrip_fee_bps + basis_bonus_bps + liquidity_bps - timing_penalty_bps
 
         if combined_score < settings.min_score_bps:
             continue
@@ -168,6 +195,10 @@ def find_opportunities(
                 basis_bps=round(basis_bps, 2),
                 basis_bonus_bps=round(basis_bonus_bps, 2),
                 fee_impact_bps=round(roundtrip_fee_bps, 2),
+                long_hours_to_next_funding=round(long_h2f, 2) if long_h2f is not None else None,
+                short_hours_to_next_funding=round(short_h2f, 2) if short_h2f is not None else None,
+                funding_timing_asymmetry_hours=round(asymmetry_h, 2) if asymmetry_h is not None else None,
+                funding_timing_penalty_bps=round(timing_penalty_bps, 2),
                 min_profitable_hours=round(min_profitable_hours, 2) if min_profitable_hours is not None else None,
                 hours_to_breakeven=round(hours_to_breakeven, 2) if hours_to_breakeven is not None else None,
                 combined_score=round(combined_score, 2),

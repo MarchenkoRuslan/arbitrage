@@ -64,6 +64,9 @@ class ArbitrageOpportunity:
     funding_diff_apr: float     # Funding rate spread (APR)
     basis_bps: float            # Directional basis, positive when short is richer
     combined_score: float       # Expected net edge over hold window, in bps
+  long_hours_to_next_funding: float | None
+  short_hours_to_next_funding: float | None
+  funding_timing_penalty_bps: float
     basis_trend: float | None   # Basis slope in bps/sample (positive = widening)
     liquidity_tier: str | None  # H/M/L relative to volume gate
 ```
