@@ -29,13 +29,17 @@
 - [x] Persistence tracking in MarketState
 - [x] Entry validator (ready/watching/blocked)
 - [x] Anti-churn signal cooldown
+- [x] Basis trend tracking (slope over recent snapshots, stored in FundingSnapshot)
+- [x] Liquidity quality scoring (log2-scaled weight, H/M/L tier classification)
+- [x] Basis magnitude and trend instability validator warnings
 
 **Live output sample:**
 ```
-Symbol     Long         Short         Diff APR%   Fund bps  Score bps    BE h
-AERO       lighter      hyperliquid      177.75     146.09     143.45      3.5
-KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
-(31 opportunities found)
+Symbol     Long         Short         Diff APR%   Fund bps  Basis bps Fees bps  Score bps    BE h Trnd Liq Status
+AERO       lighter      hyperliquid      177.75     146.09      3.22     7.00     143.45      3.5    →   H READY
+KAITO      lighter      hyperliquid      172.71     141.95     -1.10     7.00     139.92      3.5    ↑   M READY
+
+Total: 31 | Ready: 28
 ```
 
 ---

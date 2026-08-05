@@ -61,9 +61,11 @@ class ArbitrageOpportunity:
     symbol: str
     long_exchange: str
     short_exchange: str
-    funding_diff_apr: Decimal   # Funding rate spread (APR)
-    basis_bps: Decimal          # Directional basis, positive when short is richer
-    combined_score: Decimal     # Expected net edge over hold window, in bps
+    funding_diff_apr: float     # Funding rate spread (APR)
+    basis_bps: float            # Directional basis, positive when short is richer
+    combined_score: float       # Expected net edge over hold window, in bps
+    basis_trend: float | None   # Basis slope in bps/sample (positive = widening)
+    liquidity_tier: str | None  # H/M/L relative to volume gate
 ```
 
 **Logic:**

@@ -35,6 +35,8 @@ class ArbitrageOpportunity(BaseModel):
     min_profitable_hours: float | None = None
     hours_to_breakeven: float | None = None
     combined_score: float
+    basis_trend: float | None = None
+    liquidity_tier: Literal["H", "M", "L"] | None = None
 
 
 class ValidatedOpportunity(BaseModel):

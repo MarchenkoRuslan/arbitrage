@@ -51,6 +51,8 @@ def _validated_opp(symbol: str = "BTC", score: float = 50.0) -> ValidatedOpportu
             min_profitable_hours=10.0,
             hours_to_breakeven=None,
             combined_score=score,
+            basis_trend=0.5,
+            liquidity_tier="M",
         ),
         status="ready",
         reasons=[],
@@ -117,6 +119,8 @@ async def test_get_opportunities_returns_stored_results(app: App, fastapi_app_no
     assert data["opportunities"][0]["symbol"] == "ETH"
     assert data["opportunities"][0]["combined_score"] == 80.0
     assert data["opportunities"][0]["status"] == "ready"
+    assert data["opportunities"][0]["basis_trend"] == 0.5
+    assert data["opportunities"][0]["liquidity_tier"] == "M"
     assert data["opportunities"][1]["symbol"] == "BTC"
 
 
@@ -133,6 +137,8 @@ async def test_get_config_returns_current_settings(app: App, fastapi_app_no_life
     assert data["min_score_bps"] == 0.0
     assert data["expected_hold_hours"] == 72.0
     assert data["hl_fee_per_side"] == 0.0
+    assert data["liquidity_weight"] == 0.0
+    assert data["max_basis_bps"] == 0.0
     assert data["loop_interval_s"] == 30.0
 
 

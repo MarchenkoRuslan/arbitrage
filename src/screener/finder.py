@@ -1,3 +1,5 @@
+import math
+
 from src.core.config import Settings
 from src.core.models import ArbitrageOpportunity, FundingRate, Ticker
 from src.core.state import MarketState
@@ -45,6 +47,8 @@ def find_opportunities_from_state(state: MarketState, settings: Settings) -> lis
 
     for opp in opportunities:
         opp.persistence_hours = round(persistence_by_symbol.get(opp.symbol, 0.0), 2)
+        trend = state.get_basis_trend(opp.long_exchange, opp.short_exchange, opp.symbol)
+        opp.basis_trend = round(trend, 4) if trend is not None else None
 
     return opportunities
 
@@ -71,10 +75,11 @@ def find_opportunities(
         if hl_tick is None or lighter_tick is None:
             continue
 
-        if min(hl_tick.volume_24h, lighter_tick.volume_24h) < settings.min_volume_24h:
+        min_vol = min(hl_tick.volume_24h, lighter_tick.volume_24h)
+        if min_vol < settings.min_volume_24h:
             continue
 
-        # OI filter: require at least one exchange to report OI above threshold
+        # OI filter: require minimum reported OI across exchanges above threshold
         if settings.min_open_interest > 0:
             hl_oi = hl_tick.open_interest
             lighter_oi = lighter_tick.open_interest
@@ -116,7 +121,8 @@ def find_opportunities(
         basis_bps = 0.0
         if long_tick.mark_price > 0 and short_tick.mark_price > 0:
             if long_tick.index_price is not None and short_tick.index_price is not None:
-                denom = float(long_tick.index_price + short_tick.index_price) / 2
+                idx_avg = float(long_tick.index_price + short_tick.index_price) / 2
+                denom = idx_avg if idx_avg > 0 else float(long_tick.mark_price + short_tick.mark_price) / 2
             else:
                 denom = float(long_tick.mark_price + short_tick.mark_price) / 2
             basis_bps = float(short_tick.mark_price - long_tick.mark_price) / denom * 10000
@@ -132,7 +138,20 @@ def find_opportunities(
 
         basis_bonus_bps = max(0.0, basis_bps) * settings.basis_weight
         min_profitable_hours = roundtrip_fee_bps / hourly_funding_bps if hourly_funding_bps > 0 else None
-        combined_score = funding_edge_bps - roundtrip_fee_bps + basis_bonus_bps
+
+        liquidity_bps = 0.0
+        if settings.liquidity_weight > 0 and settings.min_volume_24h > 0:
+            vol_ratio = min_vol / settings.min_volume_24h
+            liquidity_bps = math.log2(max(vol_ratio, 1.0)) * settings.liquidity_weight
+
+        if min_vol >= settings.min_volume_24h * 10:
+            liquidity_tier = "H"
+        elif min_vol >= settings.min_volume_24h * 3:
+            liquidity_tier = "M"
+        else:
+            liquidity_tier = "L"
+
+        combined_score = funding_edge_bps - roundtrip_fee_bps + basis_bonus_bps + liquidity_bps
 
         if combined_score < settings.min_score_bps:
             continue
@@ -152,6 +171,7 @@ def find_opportunities(
                 min_profitable_hours=round(min_profitable_hours, 2) if min_profitable_hours is not None else None,
                 hours_to_breakeven=round(hours_to_breakeven, 2) if hours_to_breakeven is not None else None,
                 combined_score=round(combined_score, 2),
+                liquidity_tier=liquidity_tier,
             )
         )
 

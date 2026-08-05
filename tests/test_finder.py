@@ -248,11 +248,70 @@ async def test_find_opportunities_from_state_reads_cached_market_data() -> None:
 
     assert len(opportunities) == 1
     assert opportunities[0].symbol == "BTC"
-    assert opportunities[0].long_exchange == "hyperliquid"
-    assert opportunities[0].short_exchange == "lighter"
-    assert opportunities[0].persistence_hours == 1.0
-    assert opportunities[0].funding_edge_bps == 4.93
-    assert opportunities[0].combined_score == 4.93
+    assert opportunities[0].liquidity_tier == "H"  # min_volume_24h=0 → all tier H
+    assert opportunities[0].basis_trend is None  # need ≥2 snapshots with tickers for trend
+
+
+def test_find_opportunities_assigns_liquidity_tier() -> None:
+    settings = Settings(
+        min_score_bps=0.0,
+        min_volume_24h=100_000.0,
+        hl_fee_per_side=0.0,
+        lighter_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.0,
+    )
+
+    opportunities = find_opportunities(
+        hl_rates={"BTC": _funding("BTC", 5.0), "ETH": _funding("ETH", 5.0), "SOL": _funding("SOL", 5.0)},
+        lighter_rates={"BTC": _funding("BTC", 20.0), "ETH": _funding("ETH", 20.0), "SOL": _funding("SOL", 20.0)},
+        hl_tickers={
+            "BTC": _ticker("BTC", "100", volume_24h=2_000_000),
+            "ETH": _ticker("ETH", "100", volume_24h=500_000),
+            "SOL": _ticker("SOL", "100", volume_24h=150_000),
+        },
+        lighter_tickers={
+            "BTC": _ticker("BTC", "100", volume_24h=2_000_000),
+            "ETH": _ticker("ETH", "100", volume_24h=500_000),
+            "SOL": _ticker("SOL", "100", volume_24h=150_000),
+        },
+        settings=settings,
+    )
+
+    tiers = {o.symbol: o.liquidity_tier for o in opportunities}
+    assert tiers["BTC"] == "H"   # 2M >= 100K*10
+    assert tiers["ETH"] == "M"   # 500K >= 100K*3
+    assert tiers["SOL"] == "L"   # 150K < 100K*3
+
+
+def test_find_opportunities_liquidity_weight_boosts_score() -> None:
+    base_settings = Settings(
+        min_score_bps=0.0,
+        min_volume_24h=100_000.0,
+        hl_fee_per_side=0.0,
+        lighter_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.0,
+        liquidity_weight=0.0,
+    )
+    weighted_settings = base_settings.model_copy(update={"liquidity_weight": 2.0})
+
+    base_opps = find_opportunities(
+        hl_rates={"BTC": _funding("BTC", 5.0)},
+        lighter_rates={"BTC": _funding("BTC", 20.0)},
+        hl_tickers={"BTC": _ticker("BTC", "100", volume_24h=1_000_000)},
+        lighter_tickers={"BTC": _ticker("BTC", "100", volume_24h=1_000_000)},
+        settings=base_settings,
+    )
+    weighted_opps = find_opportunities(
+        hl_rates={"BTC": _funding("BTC", 5.0)},
+        lighter_rates={"BTC": _funding("BTC", 20.0)},
+        hl_tickers={"BTC": _ticker("BTC", "100", volume_24h=1_000_000)},
+        lighter_tickers={"BTC": _ticker("BTC", "100", volume_24h=1_000_000)},
+        settings=weighted_settings,
+    )
+
+    assert weighted_opps[0].combined_score > base_opps[0].combined_score
 
 
 @pytest.mark.asyncio

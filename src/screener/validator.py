@@ -33,13 +33,21 @@ async def validate_opportunities(
         if flip_count > 0:
             reasons.append(f"funding direction flipped {flip_count}x in last {6 * settings.loop_interval_s / 3600:.1f}h")
 
-        # 4. Data freshness (double-check from validator perspective)
+        # 4. Basis magnitude check
+        if settings.max_basis_bps > 0 and abs(opp.basis_bps) > settings.max_basis_bps:
+            reasons.append(f"basis {abs(opp.basis_bps):.1f}bps > {settings.max_basis_bps:.0f}bps limit")
+
+        # 5. Basis trend instability
+        if opp.basis_trend is not None and abs(opp.basis_trend) > 3.0:
+            reasons.append(f"basis unstable ({opp.basis_trend:+.1f}bps/tick)")
+
+        # 6. Data freshness (double-check from validator perspective)
         if state.is_stale("hyperliquid", opp.symbol, max_age_s=settings.stale_data_s):
             reasons.append("hyperliquid data stale")
         if state.is_stale("lighter", opp.symbol, max_age_s=settings.stale_data_s):
             reasons.append("lighter data stale")
 
-        # 5. Anti-churn: suppress repeated signals
+        # 7. Anti-churn: suppress repeated signals
         if not reasons:
             last_signal = state.get_last_signal(opp.symbol)
             if last_signal is not None:

@@ -46,6 +46,8 @@ async def get_config(request: Request) -> ConfigResponse:
         lighter_fee_per_side=s.lighter_fee_per_side,
         expected_hold_hours=s.expected_hold_hours,
         basis_weight=s.basis_weight,
+        liquidity_weight=s.liquidity_weight,
+        max_basis_bps=s.max_basis_bps,
         loop_interval_s=s.loop_interval_s,
         stale_data_s=s.stale_data_s,
     )

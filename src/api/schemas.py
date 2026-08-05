@@ -20,6 +20,8 @@ class OpportunityItem(BaseModel):
     min_profitable_hours: float | None = None
     hours_to_breakeven: float | None = None
     combined_score: float
+    basis_trend: float | None = None
+    liquidity_tier: Literal["H", "M", "L"] | None = None
     status: Literal["ready", "watching", "blocked"]
     reasons: list[str] = Field(default_factory=list)
 
@@ -51,6 +53,8 @@ def build_opportunities_response(
             min_profitable_hours=v.opportunity.min_profitable_hours,
             hours_to_breakeven=v.opportunity.hours_to_breakeven,
             combined_score=v.opportunity.combined_score,
+            basis_trend=v.opportunity.basis_trend,
+            liquidity_tier=v.opportunity.liquidity_tier,
             status=v.status,
             reasons=v.reasons,
         )
@@ -77,6 +81,8 @@ class ConfigResponse(BaseModel):
     lighter_fee_per_side: float
     expected_hold_hours: float
     basis_weight: float
+    liquidity_weight: float
+    max_basis_bps: float
     loop_interval_s: float
     stale_data_s: float
 
