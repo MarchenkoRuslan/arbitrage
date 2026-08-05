@@ -87,7 +87,8 @@ Where:
 - basis_bonus_bps = max(0, directional_basis_bps) * basis_weight  (default 0.5)
 - directional_basis_bps > 0 only when the short leg is richer than the long leg
 - liquidity_bps = 0 if liquidity_weight == 0 or min_volume_gate <= 0; otherwise log2(min_volume / min_volume_gate) * liquidity_weight
-- timing_penalty_bps = abs(short_h2f - long_h2f) * timing_penalty_bps_per_hour
+- timing_asymmetry_h = None if long_period_h != short_period_h or long_period_h <= 0; otherwise min(abs(short_h2f - long_h2f), long_period_h - abs(short_h2f - long_h2f))
+- timing_penalty_bps = 0 if timing_asymmetry_h is None; otherwise timing_asymmetry_h * timing_penalty_bps_per_hour
 ```
 
 ### 3.2 Minimum Entry Threshold
