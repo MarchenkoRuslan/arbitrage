@@ -22,7 +22,7 @@
 ## Patterns Worth Adopting
 
 1. **Entry sequencing** — hedge first, exposed second
-2. **Maker-first** — limit → wait → taker fallback (saves roughly 0.02-0.04% per leg)
+2. **Maker-first** - limit -> wait -> taker fallback (saves roughly 0.02-0.04% per leg)
 3. **Persistence gate** — do not enter if the rate holds for less than 6h
 4. **Round-trip cost model** — accurate calculation of `min_profitable_hours`
 5. **Reconciliation** — sync with the exchange after restart

@@ -15,6 +15,7 @@ class FundingSnapshot(NamedTuple):
     """A paired observation of funding rates from multiple exchanges in one poll cycle."""
     timestamp: datetime
     rates: dict[str, FundingRate]
+    basis_bps: float | None = None
 
 
 class MarketState:
@@ -69,16 +70,34 @@ class MarketState:
         self,
         symbol: str,
         rates: dict[str, FundingRate],
+        tickers: dict[str, Ticker] | None = None,
     ) -> None:
         """Record a paired funding observation from a single poll cycle."""
+        basis_bps: float | None = None
+        if tickers:
+            hl_tick = tickers.get("hyperliquid")
+            lt_tick = tickers.get("lighter")
+            if hl_tick and lt_tick and hl_tick.mark_price > 0 and lt_tick.mark_price > 0:
+                if hl_tick.index_price is not None and lt_tick.index_price is not None:
+                    idx_avg = float(hl_tick.index_price + lt_tick.index_price) / 2
+                    denom = idx_avg if idx_avg > 0 else float(hl_tick.mark_price + lt_tick.mark_price) / 2
+                else:
+                    denom = float(hl_tick.mark_price + lt_tick.mark_price) / 2
+                basis_bps = float(hl_tick.mark_price - lt_tick.mark_price) / denom * 10000
         snap = FundingSnapshot(
             timestamp=datetime.now(timezone.utc),
             rates=rates,
+            basis_bps=basis_bps,
         )
         async with self._lock:
             self._snapshots.setdefault(
                 symbol, deque(maxlen=self._funding_history_limit)
             ).append(snap)
+
+    def get_snapshots(self, symbol: str) -> list["FundingSnapshot"]:
+        """Return snapshot history for a symbol (most recent last)."""
+        history = self._snapshots.get(symbol)
+        return list(history) if history else []
 
     def get_funding(self, exchange: str) -> dict[str, FundingRate]:
         return {
@@ -147,6 +166,41 @@ class MarketState:
             prev_favorable = favorable
 
         return flips
+
+    _SUPPORTED_EXCHANGES = frozenset({"hyperliquid", "lighter"})
+
+    def get_basis_trend(
+        self,
+        long_exchange: str,
+        short_exchange: str,
+        symbol: str,
+        lookback_samples: int = 6,
+    ) -> float | None:
+        """Basis slope in bps/sample. Positive means spread is widening for the given direction."""
+        if (
+            long_exchange not in self._SUPPORTED_EXCHANGES
+            or short_exchange not in self._SUPPORTED_EXCHANGES
+            or long_exchange == short_exchange
+            or {long_exchange, short_exchange} != self._SUPPORTED_EXCHANGES
+        ):
+            return None
+        history = self._snapshots.get(symbol)
+        if not history:
+            return None
+
+        recent = list(history)[-lookback_samples:]
+        points = [(idx, snap.basis_bps) for idx, snap in enumerate(recent) if snap.basis_bps is not None]
+        if len(points) < 2:
+            return None
+
+        # Stored basis is (HL_mark - Lighter_mark); flip sign when short=lighter
+        sign = 1.0 if short_exchange == "hyperliquid" else -1.0
+        first_idx, first_basis = points[0]
+        last_idx, last_basis = points[-1]
+        span = last_idx - first_idx
+        if span <= 0:
+            return None
+        return ((last_basis * sign) - (first_basis * sign)) / span
 
     @staticmethod
     def _snap_rate_for(snap: FundingSnapshot, exchange: str) -> FundingRate | None:

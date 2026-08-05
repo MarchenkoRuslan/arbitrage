@@ -33,13 +33,36 @@ async def validate_opportunities(
         if flip_count > 0:
             reasons.append(f"funding direction flipped {flip_count}x in last {6 * settings.loop_interval_s / 3600:.1f}h")
 
-        # 4. Data freshness (double-check from validator perspective)
+        # 4. Basis magnitude check
+        if settings.max_basis_bps > 0 and abs(opp.basis_bps) > settings.max_basis_bps:
+            reasons.append(f"basis {opp.basis_bps:+.1f}bps exceeds ±{settings.max_basis_bps:.0f}bps limit")
+
+        # 5. Basis trend instability
+        if (
+            settings.max_basis_trend_bps_per_tick > 0
+            and opp.basis_trend is not None
+            and abs(opp.basis_trend) > settings.max_basis_trend_bps_per_tick
+        ):
+            reasons.append(f"basis unstable ({opp.basis_trend:+.1f}bps/tick, limit ±{settings.max_basis_trend_bps_per_tick:.1f})")
+
+        # 6. Funding timing asymmetry risk
+        if (
+            settings.max_funding_timing_asymmetry_hours > 0
+            and opp.funding_timing_asymmetry_hours is not None
+            and opp.funding_timing_asymmetry_hours > settings.max_funding_timing_asymmetry_hours
+        ):
+            reasons.append(
+                f"funding timing asymmetry {opp.funding_timing_asymmetry_hours:.1f}h > "
+                f"{settings.max_funding_timing_asymmetry_hours:.1f}h limit"
+            )
+
+        # 7. Data freshness (double-check from validator perspective)
         if state.is_stale("hyperliquid", opp.symbol, max_age_s=settings.stale_data_s):
             reasons.append("hyperliquid data stale")
         if state.is_stale("lighter", opp.symbol, max_age_s=settings.stale_data_s):
             reasons.append("lighter data stale")
 
-        # 5. Anti-churn: suppress repeated signals
+        # 8. Anti-churn: suppress repeated signals
         if not reasons:
             last_signal = state.get_last_signal(opp.symbol)
             if last_signal is not None:

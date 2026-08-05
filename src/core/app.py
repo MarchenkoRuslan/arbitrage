@@ -97,8 +97,15 @@ class App:
             # Record paired snapshots only for symbols where both exchanges have data
             common = set(hl_rates) & set(lighter_rates)
             for symbol in common:
+                snap_tickers = {}
+                if symbol in hl_tickers:
+                    snap_tickers["hyperliquid"] = hl_tickers[symbol]
+                if symbol in lighter_tickers:
+                    snap_tickers["lighter"] = lighter_tickers[symbol]
                 await self.state.record_snapshot(
-                    symbol, {"hyperliquid": hl_rates[symbol], "lighter": lighter_rates[symbol]}
+                    symbol,
+                    {"hyperliquid": hl_rates[symbol], "lighter": lighter_rates[symbol]},
+                    tickers=snap_tickers or None,
                 )
 
             logger.info(

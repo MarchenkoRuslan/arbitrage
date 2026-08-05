@@ -125,8 +125,8 @@ async def test_validator_sorts_ready_before_watching() -> None:
     })
 
     opps = [
-        _opp("BTC", score=50.0, persistence=2.0),  # fails persistence → watching
-        _opp("ETH", score=30.0, persistence=8.0),  # passes → ready
+        _opp("BTC", score=50.0, persistence=2.0),  # fails persistence -> watching
+        _opp("ETH", score=30.0, persistence=8.0),  # passes -> ready
     ]
     result = await validate_opportunities(opps, state, settings)
 
@@ -195,3 +195,87 @@ async def test_validator_ready_does_not_re_record_signal_on_subsequent_polls() -
     # Same high score again — should still be ready (signal not re-recorded at new timestamp)
     result3 = await validate_opportunities(high_opps, state, settings)
     assert result3[0].status == "ready"
+
+
+@pytest.mark.asyncio
+async def test_validator_warns_on_large_basis() -> None:
+    settings = Settings(min_persistence_hours=0.0, expected_hold_hours=72.0, stale_data_s=60.0,
+                        max_basis_bps=30.0)
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("lighter", {"BTC": _funding("BTC", 20.0)})
+    await state.update_tickers("hyperliquid", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+    await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+
+    opp = _opp("BTC", score=50.0)
+    opp.basis_bps = 50.0  # exceeds limit
+    result = await validate_opportunities([opp], state, settings)
+
+    assert result[0].status == "watching"
+    assert "basis" in result[0].reasons[0]
+    assert "+50.0" in result[0].reasons[0]  # signed value shown
+
+
+@pytest.mark.asyncio
+async def test_validator_warns_on_basis_instability() -> None:
+    settings = Settings(min_persistence_hours=0.0, expected_hold_hours=72.0, stale_data_s=60.0)
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("lighter", {"BTC": _funding("BTC", 20.0)})
+    await state.update_tickers("hyperliquid", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+    await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+
+    opp = _opp("BTC", score=50.0)
+    opp.basis_trend = 5.0  # above threshold
+    result = await validate_opportunities([opp], state, settings)
+
+    assert result[0].status == "watching"
+    assert "unstable" in result[0].reasons[0]
+    assert "limit" in result[0].reasons[0]  # shows configurable limit
+
+
+@pytest.mark.asyncio
+async def test_validator_basis_trend_threshold_zero_disables_warning() -> None:
+    settings = Settings(
+        min_persistence_hours=0.0,
+        expected_hold_hours=72.0,
+        stale_data_s=60.0,
+        max_basis_trend_bps_per_tick=0.0,
+    )
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("lighter", {"BTC": _funding("BTC", 20.0)})
+    await state.update_tickers("hyperliquid", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+    await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+
+    opp = _opp("BTC", score=50.0)
+    opp.basis_trend = 5.0
+    result = await validate_opportunities([opp], state, settings)
+
+    assert result[0].status == "ready"
+
+
+@pytest.mark.asyncio
+async def test_validator_warns_on_funding_timing_asymmetry() -> None:
+    settings = Settings(
+        min_persistence_hours=0.0,
+        expected_hold_hours=72.0,
+        stale_data_s=60.0,
+        max_funding_timing_asymmetry_hours=0.5,
+    )
+    state = MarketState(sample_interval_s=3600)
+
+    await state.update_funding("hyperliquid", {"BTC": _funding("BTC", 5.0)})
+    await state.update_funding("lighter", {"BTC": _funding("BTC", 20.0)})
+    await state.update_tickers("hyperliquid", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+    await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
+
+    opp = _opp("BTC", score=50.0)
+    opp.funding_timing_asymmetry_hours = 1.0
+    result = await validate_opportunities([opp], state, settings)
+
+    assert result[0].status == "watching"
+    assert "timing asymmetry" in result[0].reasons[0]

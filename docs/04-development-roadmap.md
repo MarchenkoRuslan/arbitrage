@@ -19,7 +19,7 @@
 - [x] Parallel fetch from both DEXes (`asyncio.gather`)
 - [x] APR normalization (both exchanges: 1h period)
 - [x] Combined scoring: funding edge − fees + basis bonus
-- [x] Fee model: HL 3.5 bps/side, Lighter 0 bps → 7 bps roundtrip
+- [x] Fee model: HL 3.5 bps/side, Lighter 0 bps -> 7 bps roundtrip
 - [x] Volume filter, staleness check, negative-basis breakeven check
 - [x] Open-interest filter (configurable)
 - [x] Index-aware basis denominator (fallback to mark midpoint)
@@ -29,13 +29,18 @@
 - [x] Persistence tracking in MarketState
 - [x] Entry validator (ready/watching/blocked)
 - [x] Anti-churn signal cooldown
+- [x] Basis trend tracking (slope over recent snapshots, stored in FundingSnapshot)
+- [x] Liquidity quality scoring (log2-scaled weight, H/M/L tier classification)
+- [x] Basis magnitude and trend instability validator warnings
+- [x] Funding timing asymmetry validator warning (configurable threshold)
 
 **Live output sample:**
 ```
-Symbol     Long         Short         Diff APR%   Fund bps  Score bps    BE h
-AERO       lighter      hyperliquid      177.75     146.09     143.45      3.5
-KAITO      lighter      hyperliquid      172.71     141.95     139.92      3.5
-(31 opportunities found)
+Symbol     Long         Short         Diff APR%   Fund bps  Basis bps Fees bps  Score bps    BE h   L h2f   S h2f   TPen Trnd Liq Status
+AERO       lighter      hyperliquid      177.75     146.09      3.22     7.00     143.45      3.5     0.4     0.1    0.6    FL  H READY
+KAITO      lighter      hyperliquid      172.71     141.95     -1.10     7.00     139.92      3.5     0.2     0.2    0.0    UP  M READY
+
+Total: 31 | Ready: 28
 ```
 
 ---

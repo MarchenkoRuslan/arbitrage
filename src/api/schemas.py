@@ -17,9 +17,15 @@ class OpportunityItem(BaseModel):
     basis_bps: float
     basis_bonus_bps: float
     fee_impact_bps: float
+    long_hours_to_next_funding: float | None = None
+    short_hours_to_next_funding: float | None = None
+    funding_timing_asymmetry_hours: float | None = None
+    funding_timing_penalty_bps: float
     min_profitable_hours: float | None = None
     hours_to_breakeven: float | None = None
     combined_score: float
+    basis_trend: float | None = None
+    liquidity_tier: Literal["H", "M", "L"] | None = None
     status: Literal["ready", "watching", "blocked"]
     reasons: list[str] = Field(default_factory=list)
 
@@ -48,9 +54,15 @@ def build_opportunities_response(
             basis_bps=v.opportunity.basis_bps,
             basis_bonus_bps=v.opportunity.basis_bonus_bps,
             fee_impact_bps=v.opportunity.fee_impact_bps,
+            long_hours_to_next_funding=v.opportunity.long_hours_to_next_funding,
+            short_hours_to_next_funding=v.opportunity.short_hours_to_next_funding,
+            funding_timing_asymmetry_hours=v.opportunity.funding_timing_asymmetry_hours,
+            funding_timing_penalty_bps=v.opportunity.funding_timing_penalty_bps,
             min_profitable_hours=v.opportunity.min_profitable_hours,
             hours_to_breakeven=v.opportunity.hours_to_breakeven,
             combined_score=v.opportunity.combined_score,
+            basis_trend=v.opportunity.basis_trend,
+            liquidity_tier=v.opportunity.liquidity_tier,
             status=v.status,
             reasons=v.reasons,
         )
@@ -77,6 +89,11 @@ class ConfigResponse(BaseModel):
     lighter_fee_per_side: float
     expected_hold_hours: float
     basis_weight: float
+    liquidity_weight: float
+    timing_penalty_bps_per_hour: float
+    max_funding_timing_asymmetry_hours: float
+    max_basis_bps: float
+    max_basis_trend_bps_per_tick: float
     loop_interval_s: float
     stale_data_s: float
 

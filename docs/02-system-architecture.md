@@ -61,9 +61,15 @@ class ArbitrageOpportunity:
     symbol: str
     long_exchange: str
     short_exchange: str
-    funding_diff_apr: Decimal   # Funding rate spread (APR)
-    basis_bps: Decimal          # Directional basis, positive when short is richer
-    combined_score: Decimal     # Expected net edge over hold window, in bps
+    funding_diff_apr: float     # Funding rate spread (APR)
+    basis_bps: float            # Directional basis, positive when short is richer
+    combined_score: float       # Expected net edge over hold window, in bps
+    long_hours_to_next_funding: float | None
+    short_hours_to_next_funding: float | None
+    funding_timing_asymmetry_hours: float | None
+    funding_timing_penalty_bps: float
+    basis_trend: float | None   # Basis slope in bps/sample (positive = widening)
+    liquidity_tier: str | None  # H/M/L relative to volume gate
 ```
 
 **Logic:**
@@ -86,7 +92,7 @@ Simultaneous position open/close flow.
 
 **Principles:**
 - Entry sequencing: hedge leg first, exposed leg second
-- Maker-first: limit order → wait → fallback to taker
+- Maker-first: limit order -> wait -> fallback to taker
 - Size positions in COINS (not USDT)
 - Roll back if one leg fails
 - Reconcile state after restart
@@ -106,19 +112,19 @@ Simultaneous position open/close flow.
 
 ```
 Current runtime (polling):
-  Exchanges → Connectors → MarketState → Screener → CLI + REST API + WS
+  Exchanges -> Connectors -> MarketState -> Screener -> CLI + REST API + WS
 
 Target runtime (WS-first):
-  WS Feeds + REST Snapshot/Recovery → MarketState → Screener → Alerts/API
+  WS Feeds + REST Snapshot/Recovery -> MarketState -> Screener -> Alerts/API
 
 Position opening:
-  Signal → Risk Check → Size Calc → Parallel Orders → Position Record
+  Signal -> Risk Check -> Size Calc -> Parallel Orders -> Position Record
 
 Monitoring (continuous):
-  Exchanges → Prices/Margin/Funding → Monitor → Alerts/Auto-actions
+  Exchanges -> Prices/Margin/Funding -> Monitor -> Alerts/Auto-actions
 
 Position closing:
-  Signal → Parallel Close → PnL Calc → Record
+  Signal -> Parallel Close -> PnL Calc -> Record
 ```
 
 ---
