@@ -6,12 +6,7 @@ import pytest
 from src.core.config import Settings
 from src.core.models import FundingRate, Ticker
 from src.core.state import MarketState, StateKey
-from src.screener.finder import (
-    _funding_timing_asymmetry_hours,
-    _hours_to_next_funding,
-    find_opportunities,
-    find_opportunities_from_state,
-)
+from src.screener.finder import find_opportunities, find_opportunities_from_state
 
 
 def _funding(symbol: str, apr: float) -> FundingRate:
@@ -258,7 +253,7 @@ async def test_find_opportunities_from_state_reads_cached_market_data() -> None:
     assert opportunities[0].persistence_hours == 1.0
     assert opportunities[0].funding_edge_bps == 4.93
     assert opportunities[0].combined_score == 4.93
-    assert opportunities[0].liquidity_tier == "H"  # min_volume_24h=0 → all tier H
+    assert opportunities[0].liquidity_tier == "H"  # min_volume_24h=0 -> all tier H
     assert opportunities[0].basis_trend is None  # need ≥2 snapshots with tickers for trend
 
 
@@ -324,14 +319,6 @@ def test_find_opportunities_liquidity_weight_boosts_score() -> None:
     assert weighted_opps[0].combined_score > base_opps[0].combined_score
 
 
-def test_hours_to_next_funding_helper() -> None:
-    ts = datetime(2026, 1, 1, 0, 30, tzinfo=UTC)
-
-    assert _hours_to_next_funding(ts, 1) == 0.5
-    assert _hours_to_next_funding(ts, 8) == 7.5
-    assert _hours_to_next_funding(ts, 0) is None
-
-
 def test_find_opportunities_applies_timing_asymmetry_penalty() -> None:
     settings = Settings(
         min_score_bps=0.0,
@@ -343,6 +330,7 @@ def test_find_opportunities_applies_timing_asymmetry_penalty() -> None:
         timing_penalty_bps_per_hour=2.0,
     )
 
+    # Long leg timestamp at 00:30 -> h2f=0.5h, short leg at exact boundary -> h2f=0.0h.
     hl_rate = FundingRate(
         symbol="ETH",
         period_hours=1,
@@ -372,18 +360,79 @@ def test_find_opportunities_applies_timing_asymmetry_penalty() -> None:
     assert opportunities[0].combined_score == 19.55
 
 
-def test_funding_timing_asymmetry_uses_circular_distance() -> None:
-    # 5 min before and 5 min after hourly boundary should be 10 min apart, not 50 min.
-    asymmetry = _funding_timing_asymmetry_hours(0.08, 0.92, 1, 1)
+def test_find_opportunities_timing_asymmetry_uses_circular_distance() -> None:
+    settings = Settings(
+        min_score_bps=0.0,
+        min_volume_24h=0.0,
+        hl_fee_per_side=0.0,
+        lighter_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.0,
+        timing_penalty_bps_per_hour=1.0,
+    )
 
-    assert asymmetry is not None
-    assert abs(asymmetry - 0.16) < 0.01
+    # 5 min before and 5 min after boundary should produce ~0.17h asymmetry (circular), not ~0.83h.
+    hl_rate = FundingRate(
+        symbol="ETH",
+        period_hours=1,
+        apr=40.0,
+        timestamp=datetime(2026, 1, 1, 0, 5, tzinfo=UTC),
+    )
+    lighter_rate = FundingRate(
+        symbol="ETH",
+        period_hours=1,
+        apr=15.0,
+        timestamp=datetime(2026, 1, 1, 0, 55, tzinfo=UTC),
+    )
+
+    opportunities = find_opportunities(
+        hl_rates={"ETH": hl_rate},
+        lighter_rates={"ETH": lighter_rate},
+        hl_tickers={"ETH": _ticker("ETH", "100")},
+        lighter_tickers={"ETH": _ticker("ETH", "100")},
+        settings=settings,
+    )
+
+    assert len(opportunities) == 1
+    assert opportunities[0].funding_timing_asymmetry_hours == 0.17
+    assert opportunities[0].funding_timing_penalty_bps == 0.17
 
 
-def test_funding_timing_asymmetry_none_when_periods_differ() -> None:
-    asymmetry = _funding_timing_asymmetry_hours(0.5, 0.5, 1, 8)
+def test_find_opportunities_timing_asymmetry_none_when_periods_differ() -> None:
+    settings = Settings(
+        min_score_bps=0.0,
+        min_volume_24h=0.0,
+        hl_fee_per_side=0.0,
+        lighter_fee_per_side=0.0,
+        expected_hold_hours=72.0,
+        basis_weight=0.0,
+        timing_penalty_bps_per_hour=2.0,
+    )
 
-    assert asymmetry is None
+    hl_rate = FundingRate(
+        symbol="ETH",
+        period_hours=8,
+        apr=40.0,
+        timestamp=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+    )
+    lighter_rate = FundingRate(
+        symbol="ETH",
+        period_hours=1,
+        apr=15.0,
+        timestamp=datetime(2026, 1, 1, 0, 30, tzinfo=UTC),
+    )
+
+    opportunities = find_opportunities(
+        hl_rates={"ETH": hl_rate},
+        lighter_rates={"ETH": lighter_rate},
+        hl_tickers={"ETH": _ticker("ETH", "100")},
+        lighter_tickers={"ETH": _ticker("ETH", "100")},
+        settings=settings,
+    )
+
+    assert len(opportunities) == 1
+    assert opportunities[0].funding_timing_asymmetry_hours is None
+    assert opportunities[0].funding_timing_penalty_bps == 0.0
 
 
 @pytest.mark.asyncio

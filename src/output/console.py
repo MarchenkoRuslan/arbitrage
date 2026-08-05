@@ -23,11 +23,11 @@ def print_opportunities(validated: list[ValidatedOpportunity], max_rows: int = 2
         trend_str = "-"
         if opp.basis_trend is not None:
             if opp.basis_trend > 0.5:
-                trend_str = "↑"
+                trend_str = "UP"
             elif opp.basis_trend < -0.5:
-                trend_str = "↓"
+                trend_str = "DN"
             else:
-                trend_str = "→"
+                trend_str = "FL"
         liq_str = opp.liquidity_tier or "-"
         status_str = item.status.upper()
         if item.reasons:

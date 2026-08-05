@@ -6,7 +6,7 @@
 
 **Key patterns:**
 - **Entry sequencing:** hedge first, exposed second (cover-on-timeout)
-- **Maker-first:** limit → wait N seconds → taker fallback
+- **Maker-first:** limit -> wait N seconds -> taker fallback
 - **Anti-churn:** shallow flip (noise) vs deep flip (real reversal, close after 3h)
 - **Persistence gate:** do not enter if the rate stays below 6h consecutively
 - **Real settlement:** read actual funding from the API, not rate × time

@@ -125,8 +125,8 @@ async def test_validator_sorts_ready_before_watching() -> None:
     })
 
     opps = [
-        _opp("BTC", score=50.0, persistence=2.0),  # fails persistence → watching
-        _opp("ETH", score=30.0, persistence=8.0),  # passes → ready
+        _opp("BTC", score=50.0, persistence=2.0),  # fails persistence -> watching
+        _opp("ETH", score=30.0, persistence=8.0),  # passes -> ready
     ]
     result = await validate_opportunities(opps, state, settings)
 

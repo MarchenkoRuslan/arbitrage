@@ -165,10 +165,10 @@ async def test_market_state_basis_trend_returns_none_with_single_snapshot() -> N
 async def test_market_state_basis_trend_positive_when_spread_widens() -> None:
     state = MarketState(sample_interval_s=3600)
 
-    # short=lighter, long=HL → directional = lighter - HL (sign=-1 for stored HL-Lighter)
+    # short=lighter, long=HL -> directional = lighter - HL (sign=-1 for stored HL-Lighter)
     # Stored: snap1 = (102-100)/101*10000 ≈ 198, snap2 = (103-100)/101.5*10000 ≈ 295
-    # Directional: snap1 = -(198) = -198, snap2 = -(295) = -295  → slope negative
-    # But with short=HL, long=Lighter: directional = stored → slope positive
+    # Directional: snap1 = -(198) = -198, snap2 = -(295) = -295  -> slope negative
+    # But with short=HL, long=Lighter: directional = stored -> slope positive
     await state.record_snapshot(
         "ETH",
         {"hyperliquid": _funding("ETH", 20.0), "lighter": _funding("ETH", 5.0)},
@@ -180,7 +180,7 @@ async def test_market_state_basis_trend_positive_when_spread_widens() -> None:
         tickers={"hyperliquid": _ticker("ETH", "102"), "lighter": _ticker("ETH", "100")},
     )
 
-    # short=HL → sign=+1, stored goes from 0 to ~198 → positive slope
+    # short=HL -> sign=+1, stored goes from 0 to ~198 -> positive slope
     trend = state.get_basis_trend("lighter", "hyperliquid", "ETH")
     assert trend is not None
     assert trend > 0
@@ -201,7 +201,7 @@ async def test_market_state_basis_trend_negative_when_spread_narrows() -> None:
         tickers={"hyperliquid": _ticker("ETH", "100"), "lighter": _ticker("ETH", "100")},
     )
 
-    # short=HL → sign=+1, stored goes from ~198 to 0 → negative slope
+    # short=HL -> sign=+1, stored goes from ~198 to 0 -> negative slope
     trend = state.get_basis_trend("lighter", "hyperliquid", "ETH")
     assert trend is not None
     assert trend < 0

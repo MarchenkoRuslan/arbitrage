@@ -92,7 +92,7 @@ Simultaneous position open/close flow.
 
 **Principles:**
 - Entry sequencing: hedge leg first, exposed leg second
-- Maker-first: limit order → wait → fallback to taker
+- Maker-first: limit order -> wait -> fallback to taker
 - Size positions in COINS (not USDT)
 - Roll back if one leg fails
 - Reconcile state after restart
@@ -112,19 +112,19 @@ Simultaneous position open/close flow.
 
 ```
 Current runtime (polling):
-  Exchanges → Connectors → MarketState → Screener → CLI + REST API + WS
+  Exchanges -> Connectors -> MarketState -> Screener -> CLI + REST API + WS
 
 Target runtime (WS-first):
-  WS Feeds + REST Snapshot/Recovery → MarketState → Screener → Alerts/API
+  WS Feeds + REST Snapshot/Recovery -> MarketState -> Screener -> Alerts/API
 
 Position opening:
-  Signal → Risk Check → Size Calc → Parallel Orders → Position Record
+  Signal -> Risk Check -> Size Calc -> Parallel Orders -> Position Record
 
 Monitoring (continuous):
-  Exchanges → Prices/Margin/Funding → Monitor → Alerts/Auto-actions
+  Exchanges -> Prices/Margin/Funding -> Monitor -> Alerts/Auto-actions
 
 Position closing:
-  Signal → Parallel Close → PnL Calc → Record
+  Signal -> Parallel Close -> PnL Calc -> Record
 ```
 
 ---

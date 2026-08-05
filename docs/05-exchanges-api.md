@@ -21,7 +21,7 @@ Both current screener connectors use public REST endpoints with no API keys.
 Base URL: https://api.hyperliquid.xyz
 
 POST /info {"type": "metaAndAssetCtxs"}
-  → [{"universe": [{"name": "BTC", ...}]}, [{"funding": "0.0001", "markPx": "64000", ...}]]
+  -> [{"universe": [{"name": "BTC", ...}]}, [{"funding": "0.0001", "markPx": "64000", ...}]]
   Returns: funding rate + mark/oracle price + volume + OI for all markets in one call
 
 Funding period: 1h
@@ -39,7 +39,7 @@ APR conversion: `rate × 8760 × 100`
 Base URL: https://mainnet.zklighter.elliot.ai
 
 GET /api/v1/orderBookDetails?filter=perp
-  → {"order_book_details": [{"symbol": "ETH", "market_type": "perp", "status": "active",
+  -> {"order_book_details": [{"symbol": "ETH", "market_type": "perp", "status": "active",
                                "mark_price": "1893.79", "index_price": "1894.65",
                                "daily_quote_token_volume": 203656594, ...}]}
   Returns: all perp markets with mark/index price and 24h volume in one call
