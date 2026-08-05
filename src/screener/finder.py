@@ -17,6 +17,21 @@ def _hours_to_next_funding(ts: datetime, period_hours: int) -> float | None:
     return remaining_s / 3600
 
 
+def _funding_timing_asymmetry_hours(
+    long_h2f: float | None,
+    short_h2f: float | None,
+    long_period_h: int,
+    short_period_h: int,
+) -> float | None:
+    if long_h2f is None or short_h2f is None:
+        return None
+    if long_period_h <= 0 or short_period_h <= 0 or long_period_h != short_period_h:
+        return None
+    period = float(long_period_h)
+    diff = abs(short_h2f - long_h2f)
+    return min(diff, period - diff)
+
+
 def find_opportunities_from_state(state: MarketState, settings: Settings) -> list[ArbitrageOpportunity]:
     """Find opportunities using current MarketState cache (zero I/O)."""
     hl_rates = state.get_funding("hyperliquid")
@@ -155,10 +170,11 @@ def find_opportunities(
 
         long_h2f = _hours_to_next_funding(long_rate.timestamp, long_rate.period_hours)
         short_h2f = _hours_to_next_funding(short_rate.timestamp, short_rate.period_hours)
-        asymmetry_h = (
-            abs(short_h2f - long_h2f)
-            if short_h2f is not None and long_h2f is not None
-            else None
+        asymmetry_h = _funding_timing_asymmetry_hours(
+            long_h2f,
+            short_h2f,
+            long_rate.period_hours,
+            short_rate.period_hours,
         )
         timing_penalty_bps = (
             asymmetry_h * settings.timing_penalty_bps_per_hour

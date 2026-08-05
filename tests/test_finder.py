@@ -6,7 +6,12 @@ import pytest
 from src.core.config import Settings
 from src.core.models import FundingRate, Ticker
 from src.core.state import MarketState, StateKey
-from src.screener.finder import _hours_to_next_funding, find_opportunities, find_opportunities_from_state
+from src.screener.finder import (
+    _funding_timing_asymmetry_hours,
+    _hours_to_next_funding,
+    find_opportunities,
+    find_opportunities_from_state,
+)
 
 
 def _funding(symbol: str, apr: float) -> FundingRate:
@@ -365,6 +370,20 @@ def test_find_opportunities_applies_timing_asymmetry_penalty() -> None:
     assert opportunities[0].funding_timing_asymmetry_hours == 0.5
     assert opportunities[0].funding_timing_penalty_bps == 1.0
     assert opportunities[0].combined_score == 19.55
+
+
+def test_funding_timing_asymmetry_uses_circular_distance() -> None:
+    # 5 min before and 5 min after hourly boundary should be 10 min apart, not 50 min.
+    asymmetry = _funding_timing_asymmetry_hours(0.08, 0.92, 1, 1)
+
+    assert asymmetry is not None
+    assert abs(asymmetry - 0.16) < 0.01
+
+
+def test_funding_timing_asymmetry_none_when_periods_differ() -> None:
+    asymmetry = _funding_timing_asymmetry_hours(0.5, 0.5, 1, 8)
+
+    assert asymmetry is None
 
 
 @pytest.mark.asyncio
