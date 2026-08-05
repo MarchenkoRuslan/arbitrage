@@ -225,3 +225,33 @@ async def test_market_state_basis_trend_returns_none_for_invalid_exchange_pair()
     assert state.get_basis_trend("unknown", "hyperliquid", "BTC") is None
     assert state.get_basis_trend("hyperliquid", "unknown", "BTC") is None
     assert state.get_basis_trend("hyperliquid", "hyperliquid", "BTC") is None
+
+
+@pytest.mark.asyncio
+async def test_market_state_basis_trend_uses_snapshot_index_distance_with_gaps() -> None:
+    state = MarketState(sample_interval_s=3600)
+
+    # snap0 basis = 0 bps
+    await state.record_snapshot(
+        "BTC",
+        {"hyperliquid": _funding("BTC", 20.0), "lighter": _funding("BTC", 5.0)},
+        tickers={"hyperliquid": _ticker("BTC", "100"), "lighter": _ticker("BTC", "100")},
+    )
+
+    # snap1 has no tickers -> basis_bps None (gap)
+    await state.record_snapshot(
+        "BTC",
+        {"hyperliquid": _funding("BTC", 20.0), "lighter": _funding("BTC", 5.0)},
+    )
+
+    # snap2 basis ~= 198.02 bps
+    await state.record_snapshot(
+        "BTC",
+        {"hyperliquid": _funding("BTC", 20.0), "lighter": _funding("BTC", 5.0)},
+        tickers={"hyperliquid": _ticker("BTC", "102"), "lighter": _ticker("BTC", "100")},
+    )
+
+    # Slope should be divided by full span (2 samples), not by count-1 (=1).
+    trend = state.get_basis_trend("lighter", "hyperliquid", "BTC", lookback_samples=6)
+    assert trend is not None
+    assert abs(trend - 99.01) < 0.2

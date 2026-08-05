@@ -188,14 +188,19 @@ class MarketState:
         if not history:
             return None
 
-        recent_basis = [s.basis_bps for s in list(history)[-lookback_samples:] if s.basis_bps is not None]
-        if len(recent_basis) < 2:
+        recent = list(history)[-lookback_samples:]
+        points = [(idx, snap.basis_bps) for idx, snap in enumerate(recent) if snap.basis_bps is not None]
+        if len(points) < 2:
             return None
 
         # Stored basis is (HL_mark - Lighter_mark); flip sign when short=lighter
         sign = 1.0 if short_exchange == "hyperliquid" else -1.0
-        values = [b * sign for b in recent_basis]
-        return (values[-1] - values[0]) / (len(values) - 1)
+        first_idx, first_basis = points[0]
+        last_idx, last_basis = points[-1]
+        span = last_idx - first_idx
+        if span <= 0:
+            return None
+        return ((last_basis * sign) - (first_basis * sign)) / span
 
     @staticmethod
     def _snap_rate_for(snap: FundingSnapshot, exchange: str) -> FundingRate | None:
