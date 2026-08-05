@@ -94,6 +94,11 @@ class MarketState:
                 symbol, deque(maxlen=self._funding_history_limit)
             ).append(snap)
 
+    def get_snapshots(self, symbol: str) -> list["FundingSnapshot"]:
+        """Return snapshot history for a symbol (most recent last)."""
+        history = self._snapshots.get(symbol)
+        return list(history) if history else []
+
     def get_funding(self, exchange: str) -> dict[str, FundingRate]:
         return {
             key.symbol: rate
@@ -162,6 +167,8 @@ class MarketState:
 
         return flips
 
+    _SUPPORTED_EXCHANGES = frozenset({"hyperliquid", "lighter"})
+
     def get_basis_trend(
         self,
         long_exchange: str,
@@ -170,6 +177,8 @@ class MarketState:
         lookback_samples: int = 6,
     ) -> float | None:
         """Basis slope in bps/sample. Positive means spread is widening for the given direction."""
+        if short_exchange not in self._SUPPORTED_EXCHANGES:
+            return None
         history = self._snapshots.get(symbol)
         if not history:
             return None

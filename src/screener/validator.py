@@ -35,11 +35,11 @@ async def validate_opportunities(
 
         # 4. Basis magnitude check
         if settings.max_basis_bps > 0 and abs(opp.basis_bps) > settings.max_basis_bps:
-            reasons.append(f"basis {abs(opp.basis_bps):.1f}bps > {settings.max_basis_bps:.0f}bps limit")
+            reasons.append(f"basis {opp.basis_bps:+.1f}bps exceeds ±{settings.max_basis_bps:.0f}bps limit")
 
         # 5. Basis trend instability
-        if opp.basis_trend is not None and abs(opp.basis_trend) > 3.0:
-            reasons.append(f"basis unstable ({opp.basis_trend:+.1f}bps/tick)")
+        if opp.basis_trend is not None and abs(opp.basis_trend) > settings.max_basis_trend_bps_per_tick:
+            reasons.append(f"basis unstable ({opp.basis_trend:+.1f}bps/tick, limit ±{settings.max_basis_trend_bps_per_tick:.1f})")
 
         # 6. Funding timing asymmetry risk
         if (

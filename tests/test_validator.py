@@ -214,6 +214,7 @@ async def test_validator_warns_on_large_basis() -> None:
 
     assert result[0].status == "watching"
     assert "basis" in result[0].reasons[0]
+    assert "+50.0" in result[0].reasons[0]  # signed value shown
 
 
 @pytest.mark.asyncio
@@ -227,11 +228,12 @@ async def test_validator_warns_on_basis_instability() -> None:
     await state.update_tickers("lighter", {"BTC": Ticker(symbol="BTC", mark_price=Decimal("100"), volume_24h=1e6)})
 
     opp = _opp("BTC", score=50.0)
-    opp.basis_trend = 5.0  # above 3.0 threshold
+    opp.basis_trend = 5.0  # above threshold
     result = await validate_opportunities([opp], state, settings)
 
     assert result[0].status == "watching"
     assert "unstable" in result[0].reasons[0]
+    assert "limit" in result[0].reasons[0]  # shows configurable limit
 
 
 @pytest.mark.asyncio

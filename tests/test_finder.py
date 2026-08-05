@@ -248,6 +248,11 @@ async def test_find_opportunities_from_state_reads_cached_market_data() -> None:
 
     assert len(opportunities) == 1
     assert opportunities[0].symbol == "BTC"
+    assert opportunities[0].long_exchange == "hyperliquid"
+    assert opportunities[0].short_exchange == "lighter"
+    assert opportunities[0].persistence_hours == 1.0
+    assert opportunities[0].funding_edge_bps == 4.93
+    assert opportunities[0].combined_score == 4.93
     assert opportunities[0].liquidity_tier == "H"  # min_volume_24h=0 → all tier H
     assert opportunities[0].basis_trend is None  # need ≥2 snapshots with tickers for trend
 

@@ -93,6 +93,7 @@ class ConfigResponse(BaseModel):
     timing_penalty_bps_per_hour: float
     max_funding_timing_asymmetry_hours: float
     max_basis_bps: float
+    max_basis_trend_bps_per_tick: float
     loop_interval_s: float
     stale_data_s: float
 

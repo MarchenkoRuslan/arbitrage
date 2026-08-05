@@ -149,6 +149,7 @@ async def test_get_config_returns_current_settings(app: App, fastapi_app_no_life
     assert data["timing_penalty_bps_per_hour"] == 0.0
     assert data["max_funding_timing_asymmetry_hours"] == 0.0
     assert data["max_basis_bps"] == 0.0
+    assert data["max_basis_trend_bps_per_tick"] == 3.0
     assert data["loop_interval_s"] == 30.0
 
 

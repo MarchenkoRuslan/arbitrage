@@ -26,7 +26,7 @@ score_bps = funding_edge_bps - roundtrip_fees_bps + basis_bonus_bps + liquidity_
 
 basis_bonus_bps = max(0, directional_basis_bps) * basis_weight  # default 0.5
 funding_edge_bps = funding_diff_apr * (expected_hold_hours / 8760) * 100
-liquidity_bps = log2(min_volume / min_volume_gate) * liquidity_weight  # 0 when weight is 0
+liquidity_bps = 0 if liquidity_weight == 0 or min_volume_gate <= 0 else log2(min_volume / min_volume_gate) * liquidity_weight
 timing_penalty_bps = abs(short_h2f - long_h2f) * timing_penalty_bps_per_hour
 ```
 

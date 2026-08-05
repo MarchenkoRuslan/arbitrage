@@ -50,6 +50,7 @@ async def get_config(request: Request) -> ConfigResponse:
         timing_penalty_bps_per_hour=s.timing_penalty_bps_per_hour,
         max_funding_timing_asymmetry_hours=s.max_funding_timing_asymmetry_hours,
         max_basis_bps=s.max_basis_bps,
+        max_basis_trend_bps_per_tick=s.max_basis_trend_bps_per_tick,
         loop_interval_s=s.loop_interval_s,
         stale_data_s=s.stale_data_s,
     )

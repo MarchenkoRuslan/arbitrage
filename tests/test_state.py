@@ -134,7 +134,7 @@ async def test_market_state_records_basis_bps_in_snapshot() -> None:
         tickers={"hyperliquid": _ticker("BTC", "102"), "lighter": _ticker("BTC", "100")},
     )
 
-    history = state._snapshots["BTC"]
+    history = state.get_snapshots("BTC")
     assert len(history) == 1
     # (102 - 100) / 101 * 10000 ≈ 198.02 bps
     assert history[0].basis_bps is not None
